@@ -18,7 +18,7 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 config = "0.13"
 hex = "0.4"
-sha2 = "0.10"
+sha2 = "0.9"
 curv = { package = "curv-kzen", version = "0.9", default-features = false }
 paillier = { package = "kzen-paillier", version = "0.4" }
 multi-party-ecdsa = { git = "https://github.com/ZenGo-X/multi-party-ecdsa", branch = "master" }
@@ -29,6 +29,8 @@ metrics-exporter-prometheus = "0.11"
 lazy_static = "1.4"
 uuid = { version = "1.3", features = ["v4"] }
 aes-gcm = "0.9.4"
+zeroize = "1"
+hmac = "0.11"
 
 [dev-dependencies]
 tokio-test = "0.4"

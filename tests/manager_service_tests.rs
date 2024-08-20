@@ -183,7 +183,6 @@ async fn test_signing_flow() {
         let signer = SignerService::new(
             &settings.manager_url,
             &settings.rabbitmq_uri,
-            i as u16,
             &format!("test_keys_{}.json", i),
         ).await.expect("Failed to initialize SignerService");
         signers.push(signer);

@@ -4296,6 +4296,7 @@ dependencies = [
  "futures",
  "futures-lite 1.13.0",
  "hex",
+ "hmac 0.11.0",
  "jsonwebtoken",
  "kzen-paillier",
  "lapin",
@@ -4308,13 +4309,14 @@ dependencies = [
  "rocket",
  "serde",
  "serde_json",
- "sha2 0.10.8",
+ "sha2 0.9.9",
  "thiserror",
  "tokio",
  "tokio-test",
  "tracing",
  "tracing-subscriber",
  "uuid",
+ "zeroize",
 ]
 
 [[package]]

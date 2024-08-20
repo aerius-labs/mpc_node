@@ -30,8 +30,9 @@ pub struct Entry {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Params {
-    pub parties: String,
-    pub threshold: String,
+    pub parties: u16,
+    pub threshold: u16,
+    pub path: String,
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]

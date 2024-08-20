@@ -1,6 +1,10 @@
 use config::{Config, ConfigError, Environment, File, ConfigBuilder};
 use serde::Deserialize;
 
+pub const PARTIES: u16 = 3;
+pub const THRESHOLD: u16 = 2;
+pub const PATH: &str = "0/1/2";
+
 #[derive(Debug, Deserialize)]
 pub struct Settings {
     pub mongodb_uri: String,
