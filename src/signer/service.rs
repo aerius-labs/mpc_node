@@ -4,7 +4,7 @@ use multi_party_ecdsa::protocols::multi_party_ecdsa::gg_2018::party_i::*;
 use curv::elliptic::curves::{Secp256k1, Point, Scalar};
 use curv::BigInt;
 use curv::arithmetic::{BasicOps, Converter, Modulo};
-use std::{fs, time};
+use std::{fs, thread, time};
 use reqwest::Client;
 use tracing::{info, error};
 use anyhow::{Context, Result};
@@ -18,7 +18,7 @@ use sha2::Sha256;
 use core::slice::SlicePattern;
 
 use crate::signer::secp256k1def::{FE, GE};
-use crate::common::{broadcast, poll_for_broadcasts, poll_for_p2p, sendp2p, Params, PartySignup, SigningRequest, PartySignupRequestBody, sha256_digest};
+use crate::common::{broadcast, poll_for_broadcasts, poll_for_p2p, sendp2p, Params, PartySignup, SigningRequest, PartySignupRequestBody, sha256_digest, ManagerError, SigningPartySignup, postb};
 use crate::config::{PARTIES, PATH, THRESHOLD};
 use crate::signer::hd_keys;
 
@@ -118,8 +118,7 @@ impl SignerService {
         let sign_at_path = !path_is_empty;
 
         // Signup
-        // let (party_num_int, uuid, total_parties) = match self.signup(&addr, &client, THRESHOLD, room_id, party_id).await.unwrap() {
-        let (party_num_int, uuid, total_parties) = match self.signup(params).await.unwrap() {
+        let (party_num_int, uuid, total_parties) = match Self::signup(&addr, &client, THRESHOLD, room_id, party_id).await.unwrap() {
             (PartySignup { number, uuid }, total_parties) => (number, uuid, total_parties),
         };
 
@@ -662,15 +661,67 @@ impl SignerService {
         //    println!("New public key: {:?}", &y_sum.x_coor);
     }
 
-    async fn signup(&self, params: &Params) -> Result<(PartySignup, u16)> {
-        let res_body = self.client.post(&format!("{}/signupsign", self.manager_url))
-            .json(params)
-            .send()
-            .await?
-            .text()
-            .await?;
-        let party_signup: PartySignup = serde_json::from_str(&res_body)?;
-        Ok((party_signup.clone(), party_signup.number))
+    async fn signup(addr: &String, client: &Client, threshold: u16, room_id: String, party_id: u16) -> Result<(PartySignup, u16), ()> {
+        let mut request_body = PartySignupRequestBody{
+            threshold,
+            room_id: room_id.clone(),
+            party_number: party_id,
+            party_uuid: "".to_string()
+        };
+        let path = "signupsign";
+        let delay = time::Duration::from_millis(100);
+        let timeout = std::env::var("TSS_CLI_SIGNUP_TIMEOUT")
+            .unwrap_or("30".to_string()).parse::<u64>().unwrap();
+        let res_body = postb(&addr, &client, path, request_body.clone()).await.unwrap();
+        let answer: Result<SigningPartySignup, ManagerError> = serde_json::from_str(&res_body).unwrap();
+        let (output, total_parties) = match answer {
+            Ok(SigningPartySignup{party_order, party_uuid, room_uuid, total_joined}) => {
+                println!("Signed up, party order: {:?}, joined so far: {:?}, waiting for room uuid", party_order, total_joined);
+                let mut now = time::SystemTime::now();
+                let mut last_total_joined = total_joined;
+                let mut party_signup = PartySignup {
+                    number: party_order,
+                    uuid: room_uuid
+                };
+                while party_signup.uuid.is_empty() {
+                    thread::sleep(delay);
+                    request_body.party_uuid = party_uuid.clone();
+                    let res_body = postb(&addr, &client, path, request_body.clone()).await.unwrap();
+                    let answer: Result<SigningPartySignup, ManagerError> = serde_json::from_str(&res_body).unwrap();
+                    match answer {
+                        Ok(SigningPartySignup{party_order, party_uuid, room_uuid, total_joined}) => {
+                            request_body.party_uuid = party_uuid;
+                            if party_signup.number != party_order {
+                                println!("Order is changed: {:?}", party_order);
+                                party_signup.number = party_order;
+                            }
+                            party_signup.uuid = room_uuid;
+                            if total_joined != last_total_joined {
+                                println!("Joined so far: {:?}", total_joined);
+                                last_total_joined = total_joined;
+                                //Reset the signup timeout
+                                now = time::SystemTime::now();
+                            }
+                        },
+                        Err(ManagerError{error}) => {
+                            panic!("{}", error);
+                        }
+                    };
+                    if now.elapsed().unwrap().as_secs() > timeout{
+                        break;
+                    }
+                }
+                if party_signup.uuid.is_empty() {
+                    panic!("Could not get room uuid after {:?} seconds of tries", timeout);
+                }
+                (party_signup, last_total_joined)
+            },
+            Err(ManagerError{error}) => {
+                panic!("{}", error);
+            }
+        };
+
+        return Ok((output, total_parties));
     }
 
     fn load_keys(key_file: &str) -> Result<(Keys, SharedKeys)> {
