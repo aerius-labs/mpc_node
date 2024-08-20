@@ -9,6 +9,7 @@ use std::{fs, time};
 use reqwest::Client;
 use tracing::{info, error};
 use anyhow::{Context, Result};
+use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
 
 pub struct SignerService {
     client: Client,
@@ -17,13 +18,14 @@ pub struct SignerService {
     shared_keys: SharedKeys,
     party_id: u16,
     manager_url: String,
+    vss_scheme_vec: Vec<VerifiableSS<Secp256k1>>,
 }
 
 impl SignerService {
     pub async fn new(manager_url: &str, rabbitmq_uri: &str, party_id: u16, key_file: &str) -> Result<Self> {
         let client = Client::new();
         let queue = RabbitMQService::new(rabbitmq_uri).await?;
-        let (party_keys, shared_keys, ..): (Keys, SharedKeys, _, _, _) = serde_json::from_str(&key_file)?;
+        let (party_keys, shared_keys, vss_scheme_vec,): (Keys, SharedKeys, Vec<VerifiableSS<Secp256k1>>,) = serde_json::from_str(&key_file)?;
 
         Ok(Self {
             client,
@@ -32,6 +34,7 @@ impl SignerService {
             shared_keys,
             party_id,
             manager_url: manager_url.to_string(),
+            vss_scheme_vec,
         })
     }
 
@@ -145,7 +148,7 @@ impl SignerService {
 
     fn load_keys(key_file: &str) -> Result<(Keys, SharedKeys)> {
         let data = fs::read_to_string(key_file)?;
-        let (party_keys, shared_keys, ..) = serde_json::from_str(&data)?;
+        let (party_keys, shared_keys, party_id): (Keys, SharedKeys, u16) = serde_json::from_str(&data)?;
         Ok((party_keys, shared_keys))
     }
 
@@ -169,11 +172,11 @@ impl SignerService {
             time::Duration::from_millis(25),
             "round0",
             uuid.to_string(),
-        ).await?;
+        ).await;
 
         let mut signers_vec = vec![self.party_id];
-        for ans in round0_ans_vec {
-            signers_vec.push(ans.parse()?);
+        for ans in round0_ans_vec.iter() {
+            signers_vec.push(serde_json::from_str(ans)?);
         }
         Ok(signers_vec)
     }
@@ -198,11 +201,11 @@ impl SignerService {
             time::Duration::from_millis(25),
             "round1",
             uuid.to_string(),
-        ).await?;
+        ).await;
 
         let mut commitments = vec![];
-        for ans in round1_ans_vec {
-            commitments.push(serde_json::from_str(&ans)?);
+        for ans in round1_ans_vec.iter() {
+            commitments.push(serde_json::from_str(ans)?);
         }
         Ok(commitments)
     }
@@ -227,11 +230,11 @@ impl SignerService {
             time::Duration::from_millis(25),
             "round2",
             uuid.to_string(),
-        ).await?;
+        ).await;
 
         let mut decommitments = vec![];
-        for ans in round2_ans_vec {
-            decommitments.push(serde_json::from_str(&ans)?);
+        for ans in round2_ans_vec.iter() {
+            decommitments.push(serde_json::from_str(ans)?);
         }
         Ok(decommitments)
     }
@@ -256,10 +259,10 @@ impl SignerService {
             time::Duration::from_millis(25),
             "round3",
             uuid.to_string(),
-        ).await?;
+        ).await;
 
         let mut local_signatures = vec![];
-        for ans in round3_ans_vec {
+        for ans in round3_ans_vec.iter() {
             local_signatures.push(serde_json::from_str(&ans)?);
         }
         Ok(local_signatures)

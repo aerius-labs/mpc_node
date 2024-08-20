@@ -4,6 +4,7 @@ use crate::common::types::{SigningRequest, SigningResult, SigningStatus};
 use crate::error::TssError;
 use anyhow::Result;
 use std::convert::TryFrom;
+use std::str::FromStr;
 use mongodb::bson;
 
 pub struct MongoDBStorage {
@@ -59,7 +60,7 @@ impl MongoDBStorage {
         if let Some(doc) = self.results.find_one(filter, None).await? {
             let request_id = doc.get_str("request_id")?.to_string();
             let signature = doc.get_binary_generic("signature").ok().map(|b| b.clone());
-            let status = SigningStatus::try_from(doc.get_str("status")?.to_string())?;
+            let status = SigningStatus::from_str(doc.get_str("status")?).map_err(|e| anyhow::anyhow!(e))?;;
             Ok(Some(SigningResult { request_id, signature, status }))
         } else {
             Ok(None)

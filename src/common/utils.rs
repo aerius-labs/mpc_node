@@ -32,15 +32,15 @@ pub fn aes_decrypt(key: &[u8], aead_pack: AEAD) -> Vec<u8> {
     cipher.decrypt(nonce, aead_pack.ciphertext.as_ref()).unwrap()
 }
 
-pub fn postb<T>(addr: &str, client: &Client, path: &str, body: T) -> Option<String>
+pub async fn postb<T>(addr: &str, client: &Client, path: &str, body: T) -> Option<String>
     where
         T: serde::ser::Serialize,
 {
     let retries = 3;
     let retry_delay = time::Duration::from_millis(250);
     for _ in 0..retries {
-        match client.post(&format!("{}/{}", addr, path)).json(&body).send() {
-            Ok(response) => return Some(response.text().unwrap()),
+        match client.post(&format!("{}/{}", addr, path)).json(&body).send().await {
+            Ok(response) => return Some(response.text().await.unwrap()),
             Err(_) => thread::sleep(retry_delay),
         }
     }
@@ -54,15 +54,15 @@ pub async fn broadcast(
     round: &str,
     data: String,
     sender_uuid: String,
-) -> Result<(), ()> {
+) -> anyhow::Result<()> {
     let key = format!("{}-{}-{}", party_num, round, sender_uuid);
     let entry = Entry {
         key: key.clone(),
         value: data,
     };
 
-    let res_body = postb(addr, client, "set", entry).unwrap();
-    serde_json::from_str(&res_body).unwrap()
+    let res_body = postb(addr, client, "set", entry).await.unwrap();
+    serde_json::from_str(&res_body).map_err(|err| anyhow::anyhow!(err))
 }
 
 pub async fn sendp2p(
@@ -80,7 +80,7 @@ pub async fn sendp2p(
         value: data,
     };
 
-    let res_body = postb(addr, client, "set", entry).unwrap();
+    let res_body = postb(addr, client, "set", entry).await.unwrap();
     serde_json::from_str(&res_body).unwrap()
 }
 
@@ -100,7 +100,7 @@ pub async fn poll_for_broadcasts(
             let index = Index { key };
             loop {
                 thread::sleep(delay);
-                let res_body = postb(addr, client, "get", index.clone()).unwrap();
+                let res_body = postb(addr, client, "get", index.clone()).await.unwrap();
                 let answer: Result<Entry, ManagerError> = serde_json::from_str(&res_body).unwrap();
                 match answer {
                     Ok(entry) => {
@@ -132,7 +132,7 @@ pub async fn poll_for_p2p(
             let index = Index { key };
             loop {
                 thread::sleep(delay);
-                let res_body = postb(addr, client, "get", index.clone()).unwrap();
+                let res_body = postb(addr, client, "get", index.clone()).await.unwrap();
                 let answer: Result<Entry, ManagerError> = serde_json::from_str(&res_body).unwrap();
                 match answer {
                     Ok(entry) => {

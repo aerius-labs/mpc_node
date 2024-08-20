@@ -2,7 +2,7 @@
 
 pub mod common;
 pub mod manager;
-mod queue;
+pub mod queue;
 pub mod signer;
 mod storage;
 

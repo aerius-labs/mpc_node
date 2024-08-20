@@ -1,3 +1,3 @@
-pub(crate) mod rabbitmq;
+pub mod rabbitmq;
 
 pub use rabbitmq::RabbitMQService;

@@ -11,7 +11,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let settings = Settings::new().expect("Failed to load configuration");
 
     // Initialize ManagerService
-    let manager_service = Arc::new(ManagerService::new(
+    let manager_service: Arc<ManagerService> = Arc::new(ManagerService::new(
         &settings.mongodb_uri,
         &settings.rabbitmq_uri,
         settings.signing_timeout,

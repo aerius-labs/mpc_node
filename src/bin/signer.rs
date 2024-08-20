@@ -1,5 +1,5 @@
-use crate::common::{broadcast, poll_for_broadcasts, poll_for_p2p, sendp2p, Params, PartySignup};
-use crate::queue::rabbitmq::RabbitMQService;
+use tss_network::common::{broadcast, poll_for_broadcasts, poll_for_p2p, sendp2p, Params, PartySignup};
+use tss_network::queue::rabbitmq::RabbitMQService;
 use multi_party_ecdsa::protocols::multi_party_ecdsa::gg_2018::party_i::*;
 use curv::elliptic::curves::{Secp256k1, Point, Scalar};
 use std::{fs, time};
@@ -47,10 +47,12 @@ impl SignerService {
 
     fn load_keys(key_file: &str) -> Result<(Keys, SharedKeys), anyhow::Error> {
         let data = fs::read_to_string(key_file)?;
-        let (party_keys, shared_keys, ..) = serde_json::from_str(&data)?;
+        let (party_keys, shared_keys, party_id): (Keys, SharedKeys, u16)= serde_json::from_str(&data)?;
         Ok((party_keys, shared_keys))
     }
+}
 
-    // Implement other methods as needed
-    // ...
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    Ok(())
 }

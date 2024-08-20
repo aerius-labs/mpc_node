@@ -1,4 +1,4 @@
-mod service;
+pub mod service;
 mod handlers;
 
 pub use service::ManagerService;
