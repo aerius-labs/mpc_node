@@ -191,7 +191,7 @@ For detailed API usage, refer to the [API Reference](#api-reference) section.
 "request_id": "550e8400-e29b-41d4-a716-446655440000",
 "signature": "48656c6c6f20576f726c64" // Hex-encoded signature
 }
-
+```
 
 ## Security Considerations
 
