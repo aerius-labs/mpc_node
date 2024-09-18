@@ -185,7 +185,7 @@ impl RabbitMQService {
         let payload = serde_json::to_vec(request)?;
         self.channel
             .basic_publish(
-                "",
+                "mpc",
                 &self.queue_name,
                 BasicPublishOptions::default(),
                 &payload,

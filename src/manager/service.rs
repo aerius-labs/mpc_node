@@ -85,7 +85,8 @@ impl ManagerService {
     }
 
     pub async fn process_signing_request(&self, request: SigningRequest) -> Result<()> {
-        self.storage.insert_request(&request).await;
-        self.queue.publish_signing_request(&request).await
+        self.storage.insert_request(&request).await?;
+        self.queue.publish_signing_request(&request).await?;
+        Ok(())
     }
 }

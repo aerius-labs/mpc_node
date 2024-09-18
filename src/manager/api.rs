@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use rocket::{State, post, get};
 use rocket::serde::json::Json;
 use rocket::response::status::Created;
@@ -20,7 +22,8 @@ pub struct SigningResponseDTO {
 }
 
 #[post("/sign", format = "json", data = "<request>")]
-pub async fn sign(manager: &State<ManagerService>, request: Json<SigningRequestDTO>, user: AuthenticatedUser) -> Result<Created<Json<SigningResponseDTO>>, Status> {
+pub async fn sign(manager: &State<Arc<ManagerService>>, request: Json<SigningRequestDTO>) -> Result<Created<Json<SigningResponseDTO>>, Status> {
+
     let message = hex::decode(&request.message)
         .context("Failed to decode message")
         .map_err(|_| Status::BadRequest)?;
