@@ -37,7 +37,7 @@ impl MongoDBStorage {
         if let Some(doc) = self.requests.find_one(filter, None).await? {
             let id = doc.get_str("id")?.to_string();
             let message = doc.get_binary_generic("message")?.clone();
-            Ok(Some(SigningRequest { id, message }))
+            Ok(Some(SigningRequest { id, message,  }))
         } else {
             Ok(None)
         }

@@ -11,8 +11,8 @@ pub struct ManagerService {
     pub(crate) storage: MongoDBStorage,
     queue: RabbitMQService,
     pub(crate) signing_rooms: Arc<RwLock<HashMap<String, SigningRoom>>>,
-    threshold: usize,
-    total_parties: usize,
+    pub threshold: usize,
+    pub total_parties: usize,
 }
 
 impl ManagerService {
@@ -82,5 +82,10 @@ impl ManagerService {
 
     pub async fn update_signing_result(&self, result: SigningResult) -> Result<()> {
         self.storage.update_signing_result(&result).await
+    }
+
+    pub async fn process_signing_request(&self, request: SigningRequest) -> Result<()> {
+        self.storage.insert_request(&request).await;
+        self.queue.publish_signing_request(&request).await
     }
 }

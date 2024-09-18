@@ -191,7 +191,7 @@ async fn test_signing_flow() {
     // Create a signing request
     let request = SigningRequest {
         id: "test_request".to_string(),
-        message: vec![1, 2, 3, 4, 5],
+        message: vec![1, 2, 3, 4, 5]
     };
 
     // Publish the signing request

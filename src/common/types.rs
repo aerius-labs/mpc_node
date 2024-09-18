@@ -1,4 +1,5 @@
 use std::fmt;
+use hmac::digest::generic_array::typenum::uint;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
@@ -60,6 +61,8 @@ pub struct ManagerError {
 pub struct SigningRequest {
     pub id: String,
     pub message: Vec<u8>,
+    // pub threshold: usize,
+    // pub total_parties: usize,
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
