@@ -46,9 +46,9 @@
 //     counter!("tss_storage_operations_total", "operation" => operation.to_string(), "result" => label.to_string()).increment(1);
 // }
 
+use lazy_static::lazy_static;
 use metrics::{counter, gauge, histogram};
 use metrics_exporter_prometheus::PrometheusBuilder;
-use lazy_static::lazy_static;
 use std::time::Instant;
 
 lazy_static! {

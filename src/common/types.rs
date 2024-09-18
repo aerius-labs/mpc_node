@@ -1,10 +1,42 @@
-use std::fmt;
 use hmac::digest::generic_array::typenum::uint;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
 pub type Key = String;
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct MessageToSignStored {
+    pub request_id: String,
+    pub message: Vec<u8>,
+    pub status: MessageStatus,
+    pub signature: Option<SignatureData>,
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub enum MessageStatus {
+    Pending,
+    Completed,
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct SignatureData {
+    r: String,
+    s: String,
+    status: String,
+    recid: i32,
+    x: String,
+    y: String,
+    msg_int: Vec<u8>,
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct SignerResult {
+    pub request_id: String,
+    pub signature: SignatureData,
+}
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct AEAD {

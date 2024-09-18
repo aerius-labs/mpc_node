@@ -1,15 +1,15 @@
-use mongodb::{Client, Database, Collection};
-use mongodb::bson::{doc, Document};
 use crate::common::types::{SigningRequest, SigningResult, SigningStatus};
+use crate::common::{MessageStatus, MessageToSignStored, SignerResult};
 use crate::error::TssError;
 use anyhow::Result;
+use mongodb::bson;
+use mongodb::bson::{doc, to_document, Document};
+use mongodb::{Client, Collection, Database};
 use std::convert::TryFrom;
 use std::str::FromStr;
-use mongodb::bson;
 
 pub struct MongoDBStorage {
-    requests: Collection<Document>,
-    results: Collection<Document>,
+    requests: Collection<MessageToSignStored>,
 }
 
 impl MongoDBStorage {
@@ -18,68 +18,48 @@ impl MongoDBStorage {
         let db = client.database(db_name);
 
         Ok(Self {
-            requests: db.collection("signing_requests"),
-            results: db.collection("signing_results"),
+            requests: db.collection::<MessageToSignStored>("messages_to_sign"),
         })
     }
 
     pub async fn insert_request(&self, request: &SigningRequest) -> Result<()> {
-        let doc = doc! {
-            "id": &request.id,
-            "message": bson::Binary { subtype: bson::spec::BinarySubtype::Generic, bytes: request.message.clone() },
+        let message_to_sign = MessageToSignStored {
+            request_id: request.id.clone(),
+            message: request.message.clone(),
+            status: MessageStatus::Pending,
+            signature: None,
         };
-        self.requests.insert_one(doc, None).await?;
+        self.requests.insert_one(message_to_sign, None).await?;
         Ok(())
     }
 
-    pub async fn get_request(&self, id: &str) -> Result<Option<SigningRequest>> {
-        let filter = doc! { "id": id };
+    pub async fn get_signing_result(&self, id: &str) -> Result<Option<MessageToSignStored>> {
+        let filter = doc! { "request_id": id };
         if let Some(doc) = self.requests.find_one(filter, None).await? {
-            let id = doc.get_str("id")?.to_string();
-            let message = doc.get_binary_generic("message")?.clone();
-            Ok(Some(SigningRequest { id, message,  }))
+            Ok(Some(doc))
         } else {
             Ok(None)
         }
     }
 
-    pub async fn update_signing_result(&self, result: &SigningResult) -> Result<()> {
+    pub async fn update_signing_result(&self, result: &SignerResult) -> Result<()> {
         let filter = doc! { "request_id": &result.request_id };
-        let update = doc! {
-            "$set": {
-                "signature": result.signature.as_ref().map(|s| bson::Binary { subtype: bson::spec::BinarySubtype::Generic, bytes: s.clone() }),
-                "status": result.status.to_string(),
+        // Find the current document in the collection
+        if let Some(mut stored_message) = self.requests.find_one(filter.clone(), None).await? {
+            // Check if the current status is `Pending`
+            if stored_message.status == MessageStatus::Pending {
+                // Update the signature and status to `Completed`
+                stored_message.signature = Some(result.signature.clone());
+                stored_message.status = MessageStatus::Completed;
+
+                // Perform the update in the collection
+                let update_doc = to_document(&stored_message)?;
+                self.requests
+                    .update_one(filter, doc! { "$set": update_doc }, None)
+                    .await?;
             }
-        };
-        self.results.update_one(filter, update, None).await?;
-        Ok(())
-    }
-
-    pub async fn get_signing_result(&self, request_id: &str) -> Result<Option<SigningResult>> {
-        let filter = doc! { "request_id": request_id };
-        if let Some(doc) = self.results.find_one(filter, None).await? {
-            let request_id = doc.get_str("request_id")?.to_string();
-            let signature = doc.get_binary_generic("signature").ok().map(|b| b.clone());
-            let status = SigningStatus::from_str(doc.get_str("status")?).map_err(|e| anyhow::anyhow!(e))?;;
-            Ok(Some(SigningResult { request_id, signature, status }))
-        } else {
-            Ok(None)
         }
-    }
-
-    pub async fn get(&self, key: &str) -> Result<Option<String>> {
-        let filter = doc! { "key": key };
-        if let Some(doc) = self.requests.find_one(filter, None).await? {
-            Ok(doc.get_str("value").ok().map(|s| s.to_string()))
-        } else {
-            Ok(None)
-        }
-    }
-
-    pub async fn set(&self, key: &str, value: &str) -> Result<()> {
-        let filter = doc! { "key": key };
-        let update = doc! { "$set": { "value": value } };
-        self.requests.update_one(filter, update, None).await?;
+        // If the status is not pending, simply return Ok()
         Ok(())
     }
 }

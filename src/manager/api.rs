@@ -1,39 +1,41 @@
 use std::sync::Arc;
 
-use rocket::{State, post, get};
-use rocket::serde::json::Json;
-use rocket::response::status::Created;
-use rocket::http::Status;
-use serde::{Deserialize, Serialize};
-use crate::manager::service::ManagerService;
-use crate::common::types::{SigningRequest, SigningStatus};
 use crate::auth::AuthenticatedUser;
+use crate::common::types::{SigningRequest, SigningStatus};
+use crate::manager::service::ManagerService;
 use anyhow::Context;
+use rocket::http::Status;
+use rocket::response::status::Created;
+use rocket::serde::json::Json;
+use rocket::{get, post, State};
+use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
 pub struct SigningRequestDTO {
     pub message: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct SigningResponseDTO {
     pub request_id: String,
     pub status: String,
 }
 
 #[post("/sign", format = "json", data = "<request>")]
-pub async fn sign(manager: &State<Arc<ManagerService>>, request: Json<SigningRequestDTO>) -> Result<Created<Json<SigningResponseDTO>>, Status> {
-
-    let message = hex::decode(&request.message)
-        .context("Failed to decode message")
-        .map_err(|_| Status::BadRequest)?;
+pub async fn sign(
+    manager: &State<Arc<ManagerService>>,
+    request: Json<SigningRequestDTO>,
+) -> Result<Created<Json<SigningResponseDTO>>, Status> {
+    let message: Vec<u8> = request.message.as_bytes().to_vec();
 
     let signing_request = SigningRequest {
         id: uuid::Uuid::new_v4().to_string(),
         message,
     };
 
-    manager.process_signing_request(signing_request.clone()).await
+    manager
+        .process_signing_request(signing_request.clone())
+        .await
         .context("Failed to process signing request")
         .map_err(|_| Status::InternalServerError)?;
 

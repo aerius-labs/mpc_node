@@ -1,6 +1,5 @@
-pub mod service;
-mod handlers;
 pub mod api;
+pub mod handlers;
+pub mod service;
 
 pub use service::ManagerService;
-pub use handlers::*;

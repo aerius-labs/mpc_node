@@ -1,9 +1,12 @@
 use rocket::{route, routes, Build, Rocket, Route};
-use tss_network::manager::service::ManagerService;
-use tss_network::config::Settings;
-use tokio::task;
 use std::sync::Arc;
+use tokio::task;
+use tss_network::config::Settings;
 use tss_network::manager::api::sign;
+use tss_network::manager::handlers::{
+    get, get_signing_result, set, signup_sign, update_signing_result,
+};
+use tss_network::manager::service::ManagerService;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -14,13 +17,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let settings = Settings::new().expect("Failed to load configuration");
 
     // Initialize ManagerService
-    let manager_service: Arc<ManagerService> = Arc::new(ManagerService::new(
-        &settings.mongodb_uri,
-        &settings.rabbitmq_uri,
-        settings.signing_timeout,
-        settings.threshold,
-        settings.total_parties,
-    ).await?);
+    let manager_service: Arc<ManagerService> = Arc::new(
+        ManagerService::new(
+            &settings.mongodb_uri,
+            &settings.rabbitmq_uri,
+            settings.signing_timeout,
+            settings.threshold,
+            settings.total_parties,
+        )
+        .await?,
+    );
 
     // Run the manager service
     // manager_service.run().await?;
@@ -37,13 +43,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Configure and launch the Rocket server
     let rocket_future = rocket::build()
         .manage(manager_service_for_rocket)
-        .mount("/", routes![sign])
+        .mount(
+            "/",
+            routes![
+                sign,
+                signup_sign,
+                set,
+                get,
+                get_signing_result,
+                update_signing_result
+            ],
+        )
         .launch();
 
-
-        tokio::select! {
-            _ = manager_task => println!("ManagerService task completed"),
-            _ = rocket_future => println!("Rocket server shut down"),
-        }
+    tokio::select! {
+        _ = manager_task => println!("ManagerService task completed"),
+        _ = rocket_future => println!("Rocket server shut down"),
+    }
     Ok(())
 }

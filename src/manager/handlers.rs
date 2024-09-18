@@ -1,60 +1,147 @@
-use rocket::{Request, State};
-use rocket::serde::json::Json;
-use crate::common::{Entry, Index, ManagerError, PartySignupRequestBody, SigningPartySignup, SigningResult};
-use crate::manager::ManagerService;
+use crate::common::{
+    signing_room, Entry, Index, ManagerError, MessageToSignStored, PartySignupRequestBody,
+    SignerResult, SigningPartySignup, SigningResult, SigningRoom,
+};
 use crate::error::TssError;
-use rocket::{post, get};
+use crate::manager::ManagerService;
+use rocket::config::Sig;
 use rocket::http::Status;
 use rocket::response::Responder;
+use rocket::serde::json::Json;
+use rocket::{get, post};
+use rocket::{Request, State};
+use std::sync::Arc;
 
 #[post("/get", format = "json", data = "<request>")]
-pub async fn get(manager: &State<ManagerService>, request: Json<Index>) -> Json<Result<Entry, ManagerError>> {
+pub async fn get(
+    manager: &State<Arc<ManagerService>>,
+    request: Json<Index>,
+) -> Json<Result<Entry, ManagerError>> {
     let index: Index = request.into_inner();
-    match manager.storage.get(&index.key).await {
-        Ok(Some(value)) => Json(Ok(Entry { key: index.key, value })),
-        Ok(None) => Json(Err(ManagerError { error: format!("Key not found: {}", index.key) })),
-        Err(e) => Json(Err(ManagerError { error: format!("Database error: {}", e) })),
+    let signing_rooms = manager.signing_rooms.read().await;
+    match signing_rooms.get(&index.key) {
+        Some(value) => {
+            let entry = Entry {
+                key: index.key.clone(),
+                value: value.clone().to_string(),
+            };
+            Json(Ok(entry))
+        }
+        None => Json(Err(ManagerError {
+            error: "Key not found".to_string(),
+        })),
     }
 }
 
 #[post("/set", format = "json", data = "<request>")]
-pub async fn set(manager: &State<ManagerService>, request: Json<Entry>) -> Json<Result<(), ManagerError>> {
+pub async fn set(
+    manager: &State<Arc<ManagerService>>,
+    request: Json<Entry>,
+) -> Json<Result<(), ManagerError>> {
     let entry: Entry = request.into_inner();
-    match manager.storage.set(&entry.key, &entry.value).await {
-        Ok(_) => Json(Ok(())),
-        Err(e) => Json(Err(ManagerError { error: format!("Database error: {}", e) })),
-    }
+    let mut signing_rooms = manager.signing_rooms.write().await;
+    signing_rooms.insert(entry.key.clone(), entry.value.clone());
+    Json(Ok(()))
 }
 
 #[post("/signupsign", format = "json", data = "<request>")]
 pub async fn signup_sign(
-    manager: &State<ManagerService>,
+    manager: &State<Arc<ManagerService>>,
     request: Json<PartySignupRequestBody>,
 ) -> Json<Result<SigningPartySignup, ManagerError>> {
     let req = request.into_inner();
+    let threshold = req.threshold;
+    let room_id = req.room_id.clone();
+    let party_uuid = req.party_uuid.clone();
+    let new_signup_request = party_uuid.is_empty();
+    let party_number = req.party_number;
+    let mut key = "signup-sign-".to_owned();
+    key.push_str(&room_id);
+
     let mut signing_rooms = manager.signing_rooms.write().await;
 
-    let signing_room = match signing_rooms.get_mut(&req.room_id) {
-        Some(room) => room,
-        None => return Json(Err(ManagerError { error: "Room not found".to_string() })),
+    let mut signing_room = match signing_rooms.get(&key) {
+        Some(room) => serde_json::from_str(room).unwrap(),
+        None => SigningRoom::new(room_id.clone(), threshold + 1),
     };
 
-    match signing_room.add_party(req.party_number, req.party_uuid) {
-        Ok(party_signup) => Json(Ok(party_signup)),
-        Err(e) => Json(Err(ManagerError { error: e })),
+    if signing_room.last_stage != "signup" {
+        if signing_room.has_member(party_number, party_uuid.clone()) {
+            return Json(Ok(signing_room.get_signup_info(party_number)));
+        }
+
+        if signing_room.are_all_members_inactive() {
+            let debug = serde_json::json!({
+                "message": "All parties have been inactive. Renewed the room.",
+                "room_id": room_id,
+                "fragment.index": party_number,
+            });
+            println!("{}", serde_json::to_string_pretty(&debug).unwrap());
+            signing_room = SigningRoom::new(room_id, threshold + 1);
+        } else {
+            return Json(Err(ManagerError {
+                error: "Room signup phase is terminated".to_string(),
+            }));
+        }
     }
+
+    if signing_room.is_full() && signing_room.are_all_members_active() && new_signup_request {
+        return Json(Err(ManagerError {
+            error: "Room is full, all members active".to_string(),
+        }));
+    }
+
+    let party_signup = if !new_signup_request {
+        if !signing_room.has_member(party_number, party_uuid.clone()) {
+            return Json(Err(ManagerError {
+                error: "No party found with the given uuid, probably replaced due to timeout"
+                    .to_string(),
+            }));
+        }
+        signing_room.update_ping(party_number)
+    } else if signing_room.member_info.contains_key(&party_number) {
+        if signing_room.is_member_active(party_number) {
+            return Json(Err(ManagerError {
+                error: "Received a re-signup request for an active party. Request ignored"
+                    .to_string(),
+            }));
+        }
+        println!(
+            "Received a re-signup request for a timed-out party {:?}, thus UUID is renewed",
+            party_number
+        );
+        signing_room.replace_party(party_number)
+    } else {
+        signing_room.add_party(party_number)
+    };
+
+    signing_rooms.insert(key.clone(), serde_json::to_string(&signing_room).unwrap());
+    Json(Ok(party_signup))
 }
 
 #[get("/signing_result/<request_id>")]
-pub async fn get_signing_result(manager: &State<ManagerService>, request_id: String) -> Result<Json<Option<SigningResult>>, TssError> {
+pub async fn get_signing_result(
+    manager: &State<Arc<ManagerService>>,
+    request_id: String,
+) -> Result<Json<Option<MessageToSignStored>>, TssError> {
     let result = manager.get_signing_result(&request_id).await?;
     Ok(Json(result))
 }
 
 #[post("/update_signing_result", format = "json", data = "<result>")]
-pub async fn update_signing_result(manager: &State<ManagerService>, result: Json<SigningResult>) -> Result<Json<()>, TssError> {
-    manager.update_signing_result(result.into_inner()).await?;
-    Ok(Json(()))
+pub async fn update_signing_result(
+    manager: &State<Arc<ManagerService>>,
+    result: Json<SignerResult>,
+) -> Json<Result<(), ManagerError>> {
+    match manager.update_signing_result(result.into_inner()).await {
+        Ok(_) => {}
+        Err(e) => {
+            return Json(Err(ManagerError {
+                error: e.to_string(),
+            }));
+        }
+    };
+    Json(Ok(()))
 }
 
 impl<'r> Responder<'r, 'static> for TssError {

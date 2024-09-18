@@ -4,14 +4,13 @@ use core::slice::SlicePattern;
 
 use curv::arithmetic::traits::Converter;
 
+use crate::signer::secp256k1def::{FE, GE};
 use curv::{
+    arithmetic::{BasicOps, One},
     BigInt,
-
-    arithmetic::{BasicOps, One}
 };
 use hmac::{Hmac, Mac, NewMac};
 use sha2::Sha512;
-use crate::signer::secp256k1def::{FE, GE};
 use zeroize::Zeroize;
 
 pub fn get_hd_key(y_sum: &GE, path_vector: Vec<BigInt>) -> (GE, FE) {

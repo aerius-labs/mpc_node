@@ -1,4 +1,4 @@
-use config::{Config, ConfigError, Environment, File, ConfigBuilder};
+use config::{Config, ConfigBuilder, ConfigError, Environment, File};
 use serde::Deserialize;
 
 pub const PARTIES: u16 = 3;
@@ -16,7 +16,9 @@ pub struct Settings {
     pub threshold: usize,
     pub total_parties: usize,
     pub signer_id: u16,
-    pub keys_file: String,
+    pub signer1_key_file: String,
+    pub signer2_key_file: String,
+    pub signer3_key_file: String,
 }
 
 impl Settings {
@@ -31,7 +33,7 @@ impl Settings {
         builder = builder.add_source(File::with_name("config/local").required(false));
 
         builder = builder.add_source(Environment::with_prefix("app"));
-        print!("config: {:?}",  builder);
+        print!("config: {:?}", builder);
         builder.build()?.try_deserialize()
     }
 }

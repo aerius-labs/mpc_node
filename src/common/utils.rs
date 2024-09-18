@@ -3,9 +3,11 @@ use aes_gcm::{
     aead::{Aead, NewAead},
     Aes256Gcm, Nonce,
 };
+use anyhow::{anyhow, Result};
 use reqwest::Client;
+use serde_json::Value;
 use sha2::{Digest, Sha256};
-use std::{iter::repeat, thread, time};
+use std::{thread, time};
 
 pub fn aes_encrypt(key: &[u8], plaintext: &[u8]) -> AEAD {
     let mut key_sized = [0u8; 32];
@@ -29,17 +31,20 @@ pub fn aes_decrypt(key: &[u8], aead_pack: AEAD) -> Vec<u8> {
     let cipher = Aes256Gcm::new(aes_key);
 
     let nonce = Nonce::from_slice(&aead_pack.tag);
-    cipher.decrypt(nonce, aead_pack.ciphertext.as_ref()).unwrap()
+    cipher
+        .decrypt(nonce, aead_pack.ciphertext.as_ref())
+        .unwrap()
 }
 
 pub async fn postb<T>(addr: &str, client: &Client, path: &str, body: T) -> Option<String>
-    where
-        T: serde::ser::Serialize,
+where
+    T: serde::ser::Serialize,
 {
     let retries = 3;
     let retry_delay = time::Duration::from_millis(250);
+    let endpoint = format!("{}/{}", addr, path);
     for _ in 0..retries {
-        match client.post(&format!("{}/{}", addr, path)).json(&body).send().await {
+        match client.post(&endpoint).json(&body).send().await {
             Ok(response) => return Some(response.text().await.unwrap()),
             Err(_) => thread::sleep(retry_delay),
         }
@@ -62,7 +67,12 @@ pub async fn broadcast(
     };
 
     let res_body = postb(addr, client, "set", entry).await.unwrap();
-    serde_json::from_str(&res_body).map_err(|err| anyhow::anyhow!(err))
+    let parsed: Value = serde_json::from_str(&res_body)
+        .map_err(|err| anyhow!("Failed to parse JSON response: {}", err))?;
+    match parsed {
+        Value::Object(map) if map.contains_key("Ok") => Ok(()),
+        _ => Err(anyhow!("Unexpected response structure: {}", res_body)),
+    }
 }
 
 pub async fn sendp2p(

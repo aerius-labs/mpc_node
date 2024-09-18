@@ -62,11 +62,11 @@
 //     Ok(token_data.claims)
 // }
 
-use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey};
-use serde::{Serialize, Deserialize};
+use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use rocket::http::Status;
-use rocket::request::{Outcome, FromRequest};
+use rocket::request::{FromRequest, Outcome};
 use rocket::Request;
+use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -124,18 +124,27 @@ pub fn create_token(user_id: &str) -> Result<String, jsonwebtoken::errors::Error
     let expiration = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
-        .as_secs() + 3600; // Token valid for 1 hour
+        .as_secs()
+        + 3600; // Token valid for 1 hour
 
     let claims = Claims {
         sub: user_id.to_owned(),
         exp: expiration as usize,
     };
 
-    encode(&Header::default(), &claims, &EncodingKey::from_secret("your-secret-key".as_ref()))
+    encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret("your-secret-key".as_ref()),
+    )
 }
 
 fn decode_token(token: &str) -> Result<Claims, jsonwebtoken::errors::Error> {
     let validation = Validation::default();
-    let token_data = decode::<Claims>(token, &DecodingKey::from_secret("your-secret-key".as_ref()), &validation)?;
+    let token_data = decode::<Claims>(
+        token,
+        &DecodingKey::from_secret("your-secret-key".as_ref()),
+        &validation,
+    )?;
     Ok(token_data.claims)
 }

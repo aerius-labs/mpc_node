@@ -1,5 +1,5 @@
-mod service;
-mod secp256k1def;
 mod hd_keys;
+mod secp256k1def;
+pub mod service;
 
 pub use service::SignerService;

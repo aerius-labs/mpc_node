@@ -1,58 +1,61 @@
-use tss_network::common::{broadcast, poll_for_broadcasts, poll_for_p2p, sendp2p, Params, PartySignup};
-use tss_network::queue::rabbitmq::RabbitMQService;
-use multi_party_ecdsa::protocols::multi_party_ecdsa::gg_2018::party_i::*;
-use curv::elliptic::curves::{Secp256k1, Point, Scalar};
-use std::{fs, time};
-use reqwest::Client;
-
-pub struct SignerService {
-    client: Client,
-    queue: RabbitMQService,
-    party_keys: Keys,
-    shared_keys: SharedKeys,
-    party_id: u16,
-    manager_url: String,
-}
-
-impl SignerService {
-    pub async fn new(manager_url: &str, rabbitmq_uri: &str, party_id: u16, key_file: &str) -> Result<Self, anyhow::Error> {
-        let client = Client::new();
-        let queue = RabbitMQService::new(rabbitmq_uri).await?;
-        let (party_keys, shared_keys) = Self::load_keys(key_file)?;
-
-        Ok(Self {
-            client,
-            queue,
-            party_keys,
-            shared_keys,
-            party_id,
-            manager_url: manager_url.to_string(),
-        })
-    }
-
-    pub async fn run(&self) -> Result<(), anyhow::Error> {
-        // Implement the main loop for the signer
-        // This should handle incoming signing requests and participate in the signing process
-        // ...
-
-        Ok(())
-    }
-
-    async fn sign(&self, message: &[u8], params: &Params) -> Result<(), anyhow::Error> {
-        // Implement the signing process from gg18_sign_client.rs
-        // ...
-
-        Ok(())
-    }
-
-    fn load_keys(key_file: &str) -> Result<(Keys, SharedKeys), anyhow::Error> {
-        let data = fs::read_to_string(key_file)?;
-        let (party_keys, shared_keys, party_id): (Keys, SharedKeys, u16)= serde_json::from_str(&data)?;
-        Ok((party_keys, shared_keys))
-    }
-}
+use rocket::{route, routes, Build, Rocket, Route};
+use std::sync::Arc;
+use tokio::{signal, task};
+use tss_network::config::Settings;
+use tss_network::signer::service::SignerService;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    tracing_subscriber::fmt::init();
+
+    let settings = Settings::new().expect("Failed to load configuration");
+
+    let signer1_service: Arc<SignerService> = Arc::new(
+        SignerService::new(
+            &settings.manager_url,
+            &settings.rabbitmq_uri,
+            &settings.signer1_key_file,
+        )
+        .await?,
+    );
+
+    let signer1_task = task::spawn(async move {
+        if let Err(e) = signer1_service.run().await {
+            eprintln!("SignerService error: {:?}", e);
+        }
+    });
+
+    let signer2_service: Arc<SignerService> = Arc::new(
+        SignerService::new(
+            &settings.manager_url,
+            &settings.rabbitmq_uri,
+            &settings.signer2_key_file,
+        )
+        .await?,
+    );
+
+    let signer2_task = task::spawn(async move {
+        if let Err(e) = signer2_service.run().await {
+            eprintln!("SignerService error: {:?}", e);
+        }
+    });
+
+    let signer3_service: Arc<SignerService> = Arc::new(
+        SignerService::new(
+            &settings.manager_url,
+            &settings.rabbitmq_uri,
+            &settings.signer3_key_file,
+        )
+        .await?,
+    );
+
+    let signer3_task = task::spawn(async move {
+        if let Err(e) = signer3_service.run().await {
+            eprintln!("SignerService error: {:?}", e);
+        }
+    });
+
+    let _ = tokio::join!(signer1_task, signer2_task, signer3_task);
+
     Ok(())
 }

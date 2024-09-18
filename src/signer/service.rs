@@ -1,26 +1,33 @@
-use crate::queue::rabbitmq::RabbitMQService;
 use crate::error::TssError;
-use multi_party_ecdsa::protocols::multi_party_ecdsa::gg_2018::party_i::*;
-use curv::elliptic::curves::{Secp256k1, Point, Scalar};
-use curv::BigInt;
+use crate::queue::rabbitmq::RabbitMQService;
+use anyhow::{anyhow, Context, Result};
+use core::slice::SlicePattern;
 use curv::arithmetic::{BasicOps, Converter, Modulo};
-use std::{fs, thread, time};
-use reqwest::Client;
-use tracing::{info, error};
-use anyhow::{Context, Result};
 use curv::cryptographic_primitives::proofs::sigma_correct_homomorphic_elgamal_enc::HomoELGamalProof;
 use curv::cryptographic_primitives::proofs::sigma_dlog::DLogProof;
 use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
+use curv::elliptic::curves::{Point, Scalar, Secp256k1};
+use curv::BigInt;
+use multi_party_ecdsa::protocols::multi_party_ecdsa::gg_2018::party_i::*;
 use multi_party_ecdsa::utilities::mta::{MessageA, MessageB};
 use paillier::EncryptionKey;
-use serde_json::json;
+use reqwest::Client;
+use rocket::http::hyper::request;
+use serde_json::{json, Value};
 use sha2::Sha256;
-use core::slice::SlicePattern;
+use std::fs::File;
+use std::io::{self, Read};
+use std::{fs, thread, time};
+use tracing::{error, info};
 
-use crate::signer::secp256k1def::{FE, GE};
-use crate::common::{broadcast, poll_for_broadcasts, poll_for_p2p, sendp2p, Params, PartySignup, SigningRequest, PartySignupRequestBody, sha256_digest, ManagerError, SigningPartySignup, postb};
+use crate::common::{
+    broadcast, poll_for_broadcasts, poll_for_p2p, postb, sendp2p, sha256_digest, ManagerError,
+    Params, PartySignup, PartySignupRequestBody, SignatureData, SignerResult, SigningPartySignup,
+    SigningRequest,
+};
 use crate::config::{PARTIES, PATH, THRESHOLD};
 use crate::signer::hd_keys;
+use crate::signer::secp256k1def::{FE, GE};
 
 struct SignerData {
     party_keys: Keys,
@@ -42,6 +49,10 @@ impl SignerService {
     pub async fn new(manager_url: &str, rabbitmq_uri: &str, key_file: &str) -> Result<Self> {
         let client = Client::new();
         let queue = RabbitMQService::new(rabbitmq_uri).await?;
+        let mut file = File::open(key_file)?;
+        let mut contents = String::new();
+        file.read_to_string(&mut contents)?;
+
         let (party_keys, shared_keys, party_id, vss_scheme_vec, paillier_key_vector, y_sum): (
             Keys,
             SharedKeys,
@@ -49,7 +60,7 @@ impl SignerService {
             Vec<VerifiableSS<Secp256k1>>,
             Vec<EncryptionKey>,
             GE,
-        ) = serde_json::from_str(&key_file).unwrap();
+        ) = serde_json::from_str(&contents).unwrap();
 
         Ok(Self {
             client,
@@ -67,7 +78,10 @@ impl SignerService {
     }
 
     pub async fn run(&self) -> Result<()> {
-        info!("Starting SignerService for party {}", self.signer_data.party_id);
+        info!(
+            "Starting SignerService for party {}",
+            self.signer_data.party_id
+        );
         loop {
             match self.queue.receive_signing_request().await {
                 Ok(request) => {
@@ -83,33 +97,27 @@ impl SignerService {
     }
 
     pub async fn handle_signing_request(&self, request: SigningRequest) -> Result<()> {
-        info!("Handling signing request: {:?}", request);
-
         // this can be dynamic as well
         let params = Params {
             threshold: THRESHOLD,
             parties: PARTIES,
             path: PATH.to_string(),
         };
-        self.sign(&request.message, &params).await;
+        self.sign(&request.message, &request.id, &params).await;
         Ok(())
     }
 
-    pub async fn sign(
-        &self,
-        message: &[u8],
-        params: &Params,
-    ) {
+    pub async fn sign(&self, message: &[u8], request_id: &str, params: &Params) {
         let client = Client::new();
         let delay = time::Duration::from_millis(250);
         let room_id = sha256_digest(message);
         let path_is_empty = params.path.is_empty();
-
         let (f_l_new, y_sum) = match path_is_empty {
             true => (FE::zero(), self.signer_data.y_sum.clone()),
-            false => call_hd_key(&params.path, self.signer_data.y_sum.clone())
+            false => call_hd_key(&params.path, self.signer_data.y_sum.clone()),
         };
-        let addr = self.manager_url.clone();
+
+        let addr = "http://localhost:8000".to_string();
         let party_keys = self.signer_data.party_keys.clone();
         let shared_keys = self.signer_data.shared_keys.clone();
         let party_id = self.signer_data.party_id.clone();
@@ -118,9 +126,13 @@ impl SignerService {
         let sign_at_path = !path_is_empty;
 
         // Signup
-        let (party_num_int, uuid, total_parties) = match Self::signup(&addr, &client, THRESHOLD, room_id, party_id).await.unwrap() {
-            (PartySignup { number, uuid }, total_parties) => (number, uuid, total_parties),
-        };
+        let (party_num_int, uuid, total_parties) =
+            match Self::signup(&addr, &client, THRESHOLD, room_id, party_id)
+                .await
+                .unwrap()
+            {
+                (PartySignup { number, uuid }, total_parties) => (number, uuid, total_parties),
+            };
 
         let debug = json!({"manager_addr": &addr, "party_num": party_num_int, "uuid": uuid});
         println!("{}", serde_json::to_string_pretty(&debug).unwrap());
@@ -133,8 +145,9 @@ impl SignerService {
             "round0",
             serde_json::to_string(&party_id).unwrap(),
             uuid.clone(),
-        ).await
-            .is_ok());
+        )
+        .await
+        .is_ok());
 
         let round0_ans_vec = poll_for_broadcasts(
             &addr,
@@ -144,7 +157,9 @@ impl SignerService {
             delay,
             "round0",
             uuid.clone(),
-        ).await;
+        )
+        .await;
+
         let mut j = 0;
         let mut signers_vec: Vec<u16> = Vec::new();
         for i in 1..=total_parties {
@@ -217,8 +232,9 @@ impl SignerService {
             "round1",
             serde_json::to_string(&(com.clone(), m_a_k.clone())).unwrap(),
             uuid.clone(),
-        ).await
-            .is_ok());
+        )
+        .await
+        .is_ok());
         let round1_ans_vec = poll_for_broadcasts(
             &addr,
             &client,
@@ -227,7 +243,8 @@ impl SignerService {
             delay,
             "round1",
             uuid.clone(),
-        ).await;
+        )
+        .await;
 
         let mut j = 0;
         let mut bc1_vec: Vec<SignBroadcastPhase1> = Vec::new();
@@ -262,16 +279,16 @@ impl SignerService {
                     &sign_keys.gamma_i,
                     &paillier_key_vector[signers_vec[i - 1] as usize],
                     m_a_vec[j].clone(),
-                    &[]
+                    &[],
                 )
-                    .unwrap();
+                .unwrap();
                 let (m_b_w, beta_wi, _, _) = MessageB::b(
                     &sign_keys.w_i,
                     &paillier_key_vector[signers_vec[i - 1] as usize],
                     m_a_vec[j].clone(),
-                    &[]
+                    &[],
                 )
-                    .unwrap();
+                .unwrap();
                 m_b_gamma_send_vec.push(m_b_gamma);
                 m_b_w_send_vec.push(m_b_w);
                 beta_vec.push(beta_gamma);
@@ -289,11 +306,15 @@ impl SignerService {
                     party_num_int.clone(),
                     i.clone(),
                     "round2",
-                    serde_json::to_string(&(m_b_gamma_send_vec[j].clone(), m_b_w_send_vec[j].clone()))
-                        .unwrap(),
+                    serde_json::to_string(&(
+                        m_b_gamma_send_vec[j].clone(),
+                        m_b_w_send_vec[j].clone()
+                    ))
+                    .unwrap(),
                     uuid.clone(),
-                ).await
-                    .is_ok());
+                )
+                .await
+                .is_ok());
                 j = j + 1;
             }
         }
@@ -306,12 +327,13 @@ impl SignerService {
             delay,
             "round2",
             uuid.clone(),
-        ).await;
+        )
+        .await;
 
         let mut m_b_gamma_rec_vec: Vec<MessageB> = Vec::new();
         let mut m_b_w_rec_vec: Vec<MessageB> = Vec::new();
 
-        for i in 0..total_parties-1 {
+        for i in 0..total_parties - 1 {
             //  if signers_vec.contains(&(i as usize)) {
             let (m_b_gamma_i, m_b_w_i): (MessageB, MessageB) =
                 serde_json::from_str(&round2_ans_vec[i as usize]).unwrap();
@@ -363,8 +385,9 @@ impl SignerService {
             "round3",
             serde_json::to_string(&delta_i).unwrap(),
             uuid.clone(),
-        ).await
-            .is_ok());
+        )
+        .await
+        .is_ok());
         let round3_ans_vec = poll_for_broadcasts(
             &addr,
             &client,
@@ -373,7 +396,8 @@ impl SignerService {
             delay,
             "round3",
             uuid.clone(),
-        ).await;
+        )
+        .await;
         let mut delta_vec: Vec<FE> = Vec::new();
         format_vec_from_reads(
             &round3_ans_vec,
@@ -392,8 +416,9 @@ impl SignerService {
             "round4",
             serde_json::to_string(&decommit).unwrap(),
             uuid.clone(),
-        ).await
-            .is_ok());
+        )
+        .await
+        .is_ok());
         let round4_ans_vec = poll_for_broadcasts(
             &addr,
             &client,
@@ -402,7 +427,8 @@ impl SignerService {
             delay,
             "round4",
             uuid.clone(),
-        ).await;
+        )
+        .await;
 
         let mut decommit_vec: Vec<SignDecommitPhase1> = Vec::new();
         format_vec_from_reads(
@@ -431,7 +457,8 @@ impl SignerService {
         let local_sig =
             LocalSignature::phase5_local_sig(&sign_keys.k_i, &message_bn, &R, &sigma, &y_sum);
 
-        let (phase5_com, phase_5a_decom, helgamal_proof, dlog_proof_rho) = local_sig.phase5a_broadcast_5b_zkproof();
+        let (phase5_com, phase_5a_decom, helgamal_proof, dlog_proof_rho) =
+            local_sig.phase5a_broadcast_5b_zkproof();
 
         //phase (5A)  broadcast commit
         assert!(broadcast(
@@ -441,8 +468,9 @@ impl SignerService {
             "round5",
             serde_json::to_string(&phase5_com).unwrap(),
             uuid.clone(),
-        ).await
-            .is_ok());
+        )
+        .await
+        .is_ok());
         let round5_ans_vec = poll_for_broadcasts(
             &addr,
             &client,
@@ -451,7 +479,8 @@ impl SignerService {
             delay.clone(),
             "round5",
             uuid.clone(),
-        ).await;
+        )
+        .await;
 
         let mut commit5a_vec: Vec<Phase5Com1> = Vec::new();
         format_vec_from_reads(
@@ -472,10 +501,11 @@ impl SignerService {
                 helgamal_proof.clone(),
                 dlog_proof_rho.clone()
             ))
-                .unwrap(),
+            .unwrap(),
             uuid.clone(),
-        ).await
-            .is_ok());
+        )
+        .await
+        .is_ok());
         let round6_ans_vec = poll_for_broadcasts(
             &addr,
             &client,
@@ -484,7 +514,8 @@ impl SignerService {
             delay.clone(),
             "round6",
             uuid.clone(),
-        ).await;
+        )
+        .await;
 
         let mut decommit5a_and_elgamal_and_dlog_vec: Vec<(
             Phase5ADecom1,
@@ -532,8 +563,9 @@ impl SignerService {
             "round7",
             serde_json::to_string(&phase5_com2).unwrap(),
             uuid.clone(),
-        ).await
-            .is_ok());
+        )
+        .await
+        .is_ok());
         let round7_ans_vec = poll_for_broadcasts(
             &addr,
             &client,
@@ -542,7 +574,8 @@ impl SignerService {
             delay.clone(),
             "round7",
             uuid.clone(),
-        ).await;
+        )
+        .await;
 
         let mut commit5c_vec: Vec<Phase5Com2> = Vec::new();
         format_vec_from_reads(
@@ -560,8 +593,9 @@ impl SignerService {
             "round8",
             serde_json::to_string(&phase_5d_decom2).unwrap(),
             uuid.clone(),
-        ).await
-            .is_ok());
+        )
+        .await
+        .is_ok());
         let round8_ans_vec = poll_for_broadcasts(
             &addr,
             &client,
@@ -570,7 +604,8 @@ impl SignerService {
             delay.clone(),
             "round8",
             uuid.clone(),
-        ).await;
+        )
+        .await;
 
         let mut decommit5d_vec: Vec<Phase5DDecom2> = Vec::new();
         format_vec_from_reads(
@@ -599,8 +634,9 @@ impl SignerService {
             "round9",
             serde_json::to_string(&s_i).unwrap(),
             uuid.clone(),
-        ).await
-            .is_ok());
+        )
+        .await
+        .is_ok());
         let round9_ans_vec = poll_for_broadcasts(
             &addr,
             &client,
@@ -609,7 +645,8 @@ impl SignerService {
             delay.clone(),
             "round9",
             uuid.clone(),
-        ).await;
+        )
+        .await;
 
         let mut s_i_vec: Vec<FE> = Vec::new();
         format_vec_from_reads(
@@ -648,8 +685,14 @@ impl SignerService {
             "y": &y_sum.y_coord().unwrap().to_hex(),
             "msg_int": message_int,
         });
-        println!("{}", ret_dict.to_string());
-
+        let signature: SignatureData = serde_json::from_value(ret_dict).unwrap();
+        match self
+            .send_signature_to_manager(&addr, &client, &signature, request_id)
+            .await
+        {
+            Ok(_) => info!("Signature sent to manager"),
+            Err(e) => error!("Error sending signature to manager: {:?}", e),
+        }
         //    fs::write("signature".to_string(), sign_json).expect("Unable to save !");
 
         //    println!("Public key Y: {:?}", to_bitcoin_public_key(y_sum.get_element()).to_bytes());
@@ -661,35 +704,63 @@ impl SignerService {
         //    println!("New public key: {:?}", &y_sum.x_coor);
     }
 
-    async fn signup(addr: &String, client: &Client, threshold: u16, room_id: String, party_id: u16) -> Result<(PartySignup, u16), ()> {
-        let mut request_body = PartySignupRequestBody{
+    async fn signup(
+        addr: &String,
+        client: &Client,
+        threshold: u16,
+        room_id: String,
+        party_id: u16,
+    ) -> Result<(PartySignup, u16), ()> {
+        let mut request_body = PartySignupRequestBody {
             threshold,
             room_id: room_id.clone(),
             party_number: party_id,
-            party_uuid: "".to_string()
+            party_uuid: "".to_string(),
         };
         let path = "signupsign";
         let delay = time::Duration::from_millis(100);
         let timeout = std::env::var("TSS_CLI_SIGNUP_TIMEOUT")
-            .unwrap_or("30".to_string()).parse::<u64>().unwrap();
-        let res_body = postb(&addr, &client, path, request_body.clone()).await.unwrap();
-        let answer: Result<SigningPartySignup, ManagerError> = serde_json::from_str(&res_body).unwrap();
+            .unwrap_or("30".to_string())
+            .parse::<u64>()
+            .unwrap();
+        let res_body: String = postb(&addr, &client, path, request_body.clone())
+            .await
+            .unwrap();
+
+        let answer: Result<SigningPartySignup, ManagerError> =
+            serde_json::from_str(&res_body).unwrap();
         let (output, total_parties) = match answer {
-            Ok(SigningPartySignup{party_order, party_uuid, room_uuid, total_joined}) => {
-                println!("Signed up, party order: {:?}, joined so far: {:?}, waiting for room uuid", party_order, total_joined);
+            Ok(SigningPartySignup {
+                party_order,
+                party_uuid,
+                room_uuid,
+                total_joined,
+            }) => {
+                println!(
+                    "Signed up, party order: {:?}, joined so far: {:?}, waiting for room uuid",
+                    party_order, total_joined
+                );
                 let mut now = time::SystemTime::now();
                 let mut last_total_joined = total_joined;
                 let mut party_signup = PartySignup {
                     number: party_order,
-                    uuid: room_uuid
+                    uuid: room_uuid,
                 };
                 while party_signup.uuid.is_empty() {
                     thread::sleep(delay);
                     request_body.party_uuid = party_uuid.clone();
-                    let res_body = postb(&addr, &client, path, request_body.clone()).await.unwrap();
-                    let answer: Result<SigningPartySignup, ManagerError> = serde_json::from_str(&res_body).unwrap();
+                    let res_body = postb(&addr, &client, path, request_body.clone())
+                        .await
+                        .unwrap();
+                    let answer: Result<SigningPartySignup, ManagerError> =
+                        serde_json::from_str(&res_body).unwrap();
                     match answer {
-                        Ok(SigningPartySignup{party_order, party_uuid, room_uuid, total_joined}) => {
+                        Ok(SigningPartySignup {
+                            party_order,
+                            party_uuid,
+                            room_uuid,
+                            total_joined,
+                        }) => {
                             request_body.party_uuid = party_uuid;
                             if party_signup.number != party_order {
                                 println!("Order is changed: {:?}", party_order);
@@ -702,21 +773,24 @@ impl SignerService {
                                 //Reset the signup timeout
                                 now = time::SystemTime::now();
                             }
-                        },
-                        Err(ManagerError{error}) => {
+                        }
+                        Err(ManagerError { error }) => {
                             panic!("{}", error);
                         }
                     };
-                    if now.elapsed().unwrap().as_secs() > timeout{
+                    if now.elapsed().unwrap().as_secs() > timeout {
                         break;
                     }
                 }
                 if party_signup.uuid.is_empty() {
-                    panic!("Could not get room uuid after {:?} seconds of tries", timeout);
+                    panic!(
+                        "Could not get room uuid after {:?} seconds of tries",
+                        timeout
+                    );
                 }
                 (party_signup, last_total_joined)
-            },
-            Err(ManagerError{error}) => {
+            }
+            Err(ManagerError { error }) => {
                 panic!("{}", error);
             }
         };
@@ -726,7 +800,8 @@ impl SignerService {
 
     fn load_keys(key_file: &str) -> Result<(Keys, SharedKeys)> {
         let data = fs::read_to_string(key_file)?;
-        let (party_keys, shared_keys, party_id): (Keys, SharedKeys, u16) = serde_json::from_str(&data)?;
+        let (party_keys, shared_keys, party_id): (Keys, SharedKeys, u16) =
+            serde_json::from_str(&data)?;
         Ok((party_keys, shared_keys))
     }
 
@@ -738,10 +813,17 @@ impl SignerService {
             "round0",
             self.signer_data.party_id.to_string(),
             uuid.to_string(),
-        ).await.context("Failed to broadcast party ID")
+        )
+        .await
+        .context("Failed to broadcast party ID")
     }
 
-    async fn collect_signer_ids(&self, party_num: u16, params: &Params, uuid: &str) -> Result<Vec<u16>> {
+    async fn collect_signer_ids(
+        &self,
+        party_num: u16,
+        params: &Params,
+        uuid: &str,
+    ) -> Result<Vec<u16>> {
         let round0_ans_vec = poll_for_broadcasts(
             &self.manager_url,
             &self.client,
@@ -750,7 +832,8 @@ impl SignerService {
             time::Duration::from_millis(25),
             "round0",
             uuid.to_string(),
-        ).await;
+        )
+        .await;
 
         let mut signers_vec = vec![self.signer_data.party_id];
         for ans in round0_ans_vec.iter() {
@@ -759,7 +842,12 @@ impl SignerService {
         Ok(signers_vec)
     }
 
-    async fn broadcast_commitment(&self, party_num: u16, com: &SignBroadcastPhase1, uuid: &str) -> Result<()> {
+    async fn broadcast_commitment(
+        &self,
+        party_num: u16,
+        com: &SignBroadcastPhase1,
+        uuid: &str,
+    ) -> Result<()> {
         broadcast(
             &self.manager_url,
             &self.client,
@@ -767,10 +855,17 @@ impl SignerService {
             "round1",
             serde_json::to_string(com)?,
             uuid.to_string(),
-        ).await.context("Failed to broadcast commitment")
+        )
+        .await
+        .context("Failed to broadcast commitment")
     }
 
-    async fn collect_commitments(&self, party_num: u16, params: &Params, uuid: &str) -> Result<Vec<SignBroadcastPhase1>> {
+    async fn collect_commitments(
+        &self,
+        party_num: u16,
+        params: &Params,
+        uuid: &str,
+    ) -> Result<Vec<SignBroadcastPhase1>> {
         let round1_ans_vec = poll_for_broadcasts(
             &self.manager_url,
             &self.client,
@@ -779,7 +874,8 @@ impl SignerService {
             time::Duration::from_millis(25),
             "round1",
             uuid.to_string(),
-        ).await;
+        )
+        .await;
 
         let mut commitments = vec![];
         for ans in round1_ans_vec.iter() {
@@ -788,7 +884,12 @@ impl SignerService {
         Ok(commitments)
     }
 
-    async fn broadcast_decommitment(&self, party_num: u16, decom: &SignDecommitPhase1, uuid: &str) -> Result<()> {
+    async fn broadcast_decommitment(
+        &self,
+        party_num: u16,
+        decom: &SignDecommitPhase1,
+        uuid: &str,
+    ) -> Result<()> {
         broadcast(
             &self.manager_url,
             &self.client,
@@ -796,10 +897,17 @@ impl SignerService {
             "round2",
             serde_json::to_string(decom)?,
             uuid.to_string(),
-        ).await.context("Failed to broadcast decommitment")
+        )
+        .await
+        .context("Failed to broadcast decommitment")
     }
 
-    async fn collect_decommitments(&self, party_num: u16, params: &Params, uuid: &str) -> Result<Vec<SignDecommitPhase1>> {
+    async fn collect_decommitments(
+        &self,
+        party_num: u16,
+        params: &Params,
+        uuid: &str,
+    ) -> Result<Vec<SignDecommitPhase1>> {
         let round2_ans_vec = poll_for_broadcasts(
             &self.manager_url,
             &self.client,
@@ -808,7 +916,8 @@ impl SignerService {
             time::Duration::from_millis(25),
             "round2",
             uuid.to_string(),
-        ).await;
+        )
+        .await;
 
         let mut decommitments = vec![];
         for ans in round2_ans_vec.iter() {
@@ -817,7 +926,12 @@ impl SignerService {
         Ok(decommitments)
     }
 
-    async fn broadcast_local_signature(&self, party_num: u16, local_sig: &LocalSignature, uuid: &str) -> Result<()> {
+    async fn broadcast_local_signature(
+        &self,
+        party_num: u16,
+        local_sig: &LocalSignature,
+        uuid: &str,
+    ) -> Result<()> {
         broadcast(
             &self.manager_url,
             &self.client,
@@ -825,10 +939,17 @@ impl SignerService {
             "round3",
             serde_json::to_string(local_sig)?,
             uuid.to_string(),
-        ).await.context("Failed to broadcast local signature")
+        )
+        .await
+        .context("Failed to broadcast local signature")
     }
 
-    async fn collect_local_signatures(&self, party_num: u16, params: &Params, uuid: &str) -> Result<Vec<LocalSignature>> {
+    async fn collect_local_signatures(
+        &self,
+        party_num: u16,
+        params: &Params,
+        uuid: &str,
+    ) -> Result<Vec<LocalSignature>> {
         let round3_ans_vec = poll_for_broadcasts(
             &self.manager_url,
             &self.client,
@@ -837,7 +958,8 @@ impl SignerService {
             time::Duration::from_millis(25),
             "round3",
             uuid.to_string(),
-        ).await;
+        )
+        .await;
 
         let mut local_signatures = vec![];
         for ans in round3_ans_vec.iter() {
@@ -846,22 +968,40 @@ impl SignerService {
         Ok(local_signatures)
     }
 
-    async fn send_signature_to_manager(&self, signature: &SignatureRecid) -> Result<()> {
-        // Implement logic to send the final signature back to the manager
-        // This could involve sending an HTTP request to a specific endpoint on the manager
-        todo!("Implement send_signature_to_manager")
+    async fn send_signature_to_manager(
+        &self,
+        addr: &str,
+        client: &Client,
+        signature: &SignatureData,
+        request_id: &str,
+    ) -> Result<()> {
+        let signer_result = SignerResult {
+            request_id: request_id.to_string(),
+            signature: signature.clone(),
+        };
+        let res_body = postb::<SignerResult>(addr, client, "update_signing_result", signer_result)
+            .await
+            .unwrap();
+        let parsed: Value = serde_json::from_str(&res_body)
+            .map_err(|err| anyhow!("Failed to parse response from manager: {:?}", err))?;
+
+        match parsed {
+            Value::Object(map) if map.contains_key("Ok") => {
+                info!("Signature sent to manager");
+                Ok(())
+            }
+            _ => Err(anyhow!("Failed to send signature to manager: {:?}", parsed)),
+        }
     }
 }
 
 fn call_hd_key(path: &str, public_key: GE) -> (FE, GE) {
-
     let path_vector: Vec<BigInt> = path
         .split('/')
         .map(|s| BigInt::from_str_radix(s.trim(), 10).unwrap())
         .collect();
     let (public_key_child, f_l_new) = hd_keys::get_hd_key(&public_key, path_vector.clone());
     (f_l_new, public_key_child.clone())
-
 }
 
 fn format_vec_from_reads<'a, T: serde::Deserialize<'a> + Clone>(
