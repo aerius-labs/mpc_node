@@ -12,6 +12,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let signer1_service: Arc<SignerService> = Arc::new(
         SignerService::new(
             &settings.manager_url,
+            &settings.manager_port,
             &settings.rabbitmq_uri,
             &settings.signer1_key_file,
             &settings.threshold,
@@ -30,6 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let signer2_service: Arc<SignerService> = Arc::new(
         SignerService::new(
             &settings.manager_url,
+            &settings.manager_port,
             &settings.rabbitmq_uri,
             &settings.signer2_key_file,
             &settings.threshold,
@@ -48,6 +50,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let signer3_service: Arc<SignerService> = Arc::new(
         SignerService::new(
             &settings.manager_url,
+            &settings.manager_port,
             &settings.rabbitmq_uri,
             &settings.signer3_key_file,
             &settings.threshold,

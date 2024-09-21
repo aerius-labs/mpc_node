@@ -7,7 +7,7 @@ pub struct Settings {
     pub mongodb_uri: String,
     pub rabbitmq_uri: String,
     pub manager_url: String,
-    pub manager_port: String,
+    pub manager_port: u16,
     pub signing_timeout: u64,
     pub threshold: u16,
     pub total_parties: u16,

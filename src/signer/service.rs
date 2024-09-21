@@ -1,6 +1,7 @@
 use crate::queue::rabbitmq::RabbitMQService;
 use anyhow::{anyhow, Context, Result};
 use core::slice::SlicePattern;
+use std::fmt::format;
 use curv::arithmetic::{BasicOps, Converter, Modulo};
 use curv::cryptographic_primitives::proofs::sigma_correct_homomorphic_elgamal_enc::HomoELGamalProof;
 use curv::cryptographic_primitives::proofs::sigma_dlog::DLogProof;
@@ -40,6 +41,7 @@ pub struct SignerService {
     client: Client,
     queue: RabbitMQService,
     manager_url: String,
+    manager_port: String,
     signer_data: SignerData,
     threshold : u16,
     total_parties :u16,
@@ -48,7 +50,7 @@ pub struct SignerService {
 }
 
 impl SignerService {
-    pub async fn new(manager_url: &str, rabbitmq_uri: &str, key_file: &str, threshold: &u16, total_parties: &u16, path: &str) -> Result<Self> {
+    pub async fn new(manager_url: &str, manager_port: &u16, rabbitmq_uri: &str, key_file: &str, threshold: &u16, total_parties: &u16, path: &str) -> Result<Self> {
         let client = Client::new();
         let queue = RabbitMQService::new(rabbitmq_uri).await?;
         let mut file = File::open(key_file)?;
@@ -69,6 +71,7 @@ impl SignerService {
             client,
             queue,
             manager_url: manager_url.to_string(),
+            manager_port: manager_port.to_string(),
             signer_data: SignerData {
                 party_keys,
                 shared_keys,
@@ -123,7 +126,7 @@ impl SignerService {
             false => call_hd_key(&params.path, self.signer_data.y_sum.clone()),
         };
 
-        let addr: String = "http://localhost:8000".to_string();
+        let addr = format!("{}:{}", self.manager_url, self.manager_port);
         let party_keys = self.signer_data.party_keys.clone();
         let shared_keys = self.signer_data.shared_keys.clone();
         let party_id = self.signer_data.party_id;
