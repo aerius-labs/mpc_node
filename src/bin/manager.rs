@@ -1,11 +1,9 @@
-use rocket::{route, routes, Build, Rocket, Route};
+use rocket::routes;
 use std::sync::Arc;
 use tokio::task;
 use tss_network::config::Settings;
-use tss_network::manager::api::sign;
-use tss_network::manager::handlers::{
-    get, get_signing_result, set, signup_sign, update_signing_result,
-};
+use tss_network::manager::api::{get_signing_result, sign};
+use tss_network::manager::handlers::{get, set, signup_sign, update_signing_result};
 use tss_network::manager::service::ManagerService;
 
 #[tokio::main]

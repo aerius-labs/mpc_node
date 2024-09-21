@@ -119,15 +119,6 @@ pub async fn signup_sign(
     Json(Ok(party_signup))
 }
 
-#[get("/signing_result/<request_id>")]
-pub async fn get_signing_result(
-    manager: &State<Arc<ManagerService>>,
-    request_id: String,
-) -> Result<Json<Option<MessageToSignStored>>, TssError> {
-    let result = manager.get_signing_result(&request_id).await?;
-    Ok(Json(result))
-}
-
 #[post("/update_signing_result", format = "json", data = "<result>")]
 pub async fn update_signing_result(
     manager: &State<Arc<ManagerService>>,

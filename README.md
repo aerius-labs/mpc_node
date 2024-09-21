@@ -4,16 +4,30 @@ TSS Network is a robust implementation of Threshold Signature Scheme (TSS) for d
 
 ## Table of Contents
 
-- [Features](#features)
-- [Architecture](#architecture)
-- [Components](#components)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Usage](#usage)
-- [API Reference](#api-reference)
-- [Security Considerations](#security-considerations)
-- [Contributing](#contributing)
-- [License](#license)
+- [TSS Network](#tss-network)
+  - [Table of Contents](#table-of-contents)
+  - [Features](#features)
+  - [Architecture](#architecture)
+  - [Components](#components)
+    - [Manager Service](#manager-service)
+    - [Signer Service](#signer-service)
+    - [Common Components](#common-components)
+    - [Application data flow](#application-data-flow)
+  - [Installation](#installation)
+  - [Configuration](#configuration)
+  - [Usage](#usage)
+    - [Starting the Manager Service](#starting-the-manager-service)
+    - [Starting the Signer Service](#starting-the-signer-service)
+    - [API Endpoints](#api-endpoints)
+  - [API Reference](#api-reference)
+    - [Initiate Signing Request](#initiate-signing-request)
+    - [Get Signing Status](#get-signing-status)
+    - [Get Signature](#get-signature)
+    - [How to test MPC](#how-to-test-mpc)
+      - [Command to run test](#command-to-run-test)
+  - [Security Considerations](#security-considerations)
+  - [Contributing](#contributing)
+  - [License](#license)
 
 ## Features
 
@@ -198,6 +212,23 @@ For detailed API usage, refer to the [API Reference](#api-reference) section.
 "signature": "48656c6c6f20576f726c64" // Hex-encoded signature
 }
 ```
+### How to test MPC
+
+Make sure these services are running locally
+
+```
+// MongoDB
+"mongodb://localhost:27017"
+
+// RabbitMQ
+"amqp://localhost:5672"
+```
+#### Command to run test
+
+```
+cargo test --package tss_network --test manager_service_tests -- test_signing_flow --exact --show-output
+```
+
 
 ## Security Considerations
 

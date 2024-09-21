@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use crate::auth::AuthenticatedUser;
 use crate::common::types::{SigningRequest, SigningStatus};
+use crate::common::MessageToSignStored;
+use crate::error::TssError;
 use crate::manager::service::ManagerService;
 use anyhow::Context;
 use rocket::http::Status;
@@ -47,6 +49,14 @@ pub async fn sign(
     Ok(Created::new("/").body(Json(response)))
 }
 
+#[get("/signing_result/<request_id>")]
+pub async fn get_signing_result(
+    manager: &State<Arc<ManagerService>>,
+    request_id: String,
+) -> Result<Json<Option<MessageToSignStored>>, TssError> {
+    let result = manager.get_signing_result(&request_id).await?;
+    Ok(Json(result))
+}
 // #[get("/status/<request_id>")]
 // pub async fn get_status(manager: &State<ManagerService>, request_id: String, user: AuthenticatedUser) -> Result<Json<SigningResponseDTO>, Status> {
 //     let status = manager.get_request_status(&request_id).await
