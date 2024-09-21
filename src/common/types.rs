@@ -1,6 +1,4 @@
-use hmac::digest::generic_array::typenum::uint;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;

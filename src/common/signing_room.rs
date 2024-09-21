@@ -108,7 +108,7 @@ impl SigningRoom {
             && self
                 .member_info
                 .values()
-                .all(|x| SigningRoom::is_timeout(x))
+                .all(SigningRoom::is_timeout)
     }
 
     pub fn is_member_active(&self, party_number: u16) -> bool {
@@ -135,9 +135,9 @@ impl SigningRoom {
             self.last_stage = "terminated".to_string();
             let mut new_order = 1;
             for (key, value) in self.member_info.iter_mut() {
-                if active_members.contains_key(&key) {
+                if active_members.contains_key(key) {
                     value.party_order = new_order;
-                    new_order = new_order + 1;
+                    new_order += 1;
                 }
             }
         }

@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
-use crate::auth::AuthenticatedUser;
-use crate::common::types::{SigningRequest, SigningStatus};
+use crate::common::types::SigningRequest;
 use crate::common::MessageToSignStored;
 use crate::error::TssError;
 use crate::manager::service::ManagerService;

@@ -1,6 +1,5 @@
 use crate::common::{
-    Key, MessageToSignStored, SignerResult, SigningRequest, SigningResult, SigningRoom,
-    SigningStatus,
+    Key, MessageToSignStored, SignerResult, SigningRequest, SigningRoom,
 };
 use crate::queue::rabbitmq::RabbitMQService;
 use crate::storage::mongodb::MongoDBStorage;
@@ -8,14 +7,14 @@ use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{error, info};
+use tracing::info;
 
 pub struct ManagerService {
     pub(crate) storage: MongoDBStorage,
     queue: RabbitMQService,
     pub(crate) signing_rooms: Arc<RwLock<HashMap<Key, String>>>,
-    pub threshold: usize,
-    pub total_parties: usize,
+    pub threshold: u16,
+    pub total_parties: u16,
 }
 
 impl ManagerService {
@@ -23,8 +22,8 @@ impl ManagerService {
         mongodb_uri: &str,
         rabbitmq_uri: &str,
         signing_timeout: u64,
-        threshold: usize,
-        total_parties: usize,
+        threshold: u16,
+        total_parties: u16,
     ) -> Result<Self> {
         let storage = MongoDBStorage::new(mongodb_uri, "tss_network").await?;
         let queue = RabbitMQService::new(rabbitmq_uri).await?;
@@ -63,8 +62,8 @@ impl ManagerService {
         // Notify all registered signers about the new signing request
         let signing_rooms = self.signing_rooms.read().await;
         if let Some(room) = signing_rooms.get(&room_id) {
-            let room: SigningRoom = serde_json::from_str(&room)?;
-            for (party_number, _) in &room.member_info {
+            let room: SigningRoom = serde_json::from_str(room)?;
+            for party_number in room.member_info.keys() {
                 self.notify_signer(*party_number, &request).await?;
             }
         }
@@ -77,7 +76,7 @@ impl ManagerService {
         let mut signing_rooms = self.signing_rooms.write().await;
         let signing_room = serde_json::to_string(&SigningRoom::new(
             room_id.clone(),
-            self.total_parties as u16,
+            self.total_parties,
         ))?;
         signing_rooms.insert(room_id.clone(), signing_room);
         Ok(room_id)

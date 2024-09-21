@@ -1,21 +1,17 @@
-use config::{Config, ConfigBuilder, ConfigError, Environment, File};
+use config::{Config, ConfigError, Environment, File};
 use serde::Deserialize;
 
-pub const PARTIES: u16 = 3;
-pub const THRESHOLD: u16 = 2;
-pub const PATH: &str = "0/1/2";
 
 #[derive(Debug, Deserialize)]
 pub struct Settings {
     pub mongodb_uri: String,
     pub rabbitmq_uri: String,
     pub manager_url: String,
-    pub manager_port: u16,
-    pub signer_port: u16,
+    pub manager_port: String,
     pub signing_timeout: u64,
-    pub threshold: usize,
-    pub total_parties: usize,
-    pub signer_id: u16,
+    pub threshold: u16,
+    pub total_parties: u16,
+    pub path: String,
     pub signer1_key_file: String,
     pub signer2_key_file: String,
     pub signer3_key_file: String,

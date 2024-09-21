@@ -1,6 +1,5 @@
-use rocket::{route, routes, Build, Rocket, Route};
 use std::sync::Arc;
-use tokio::{signal, task};
+use tokio::task;
 use tss_network::config::Settings;
 use tss_network::signer::service::SignerService;
 
@@ -15,6 +14,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             &settings.manager_url,
             &settings.rabbitmq_uri,
             &settings.signer1_key_file,
+            &settings.threshold,
+            &settings.total_parties,
+            &settings.path
         )
         .await?,
     );
@@ -30,6 +32,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             &settings.manager_url,
             &settings.rabbitmq_uri,
             &settings.signer2_key_file,
+            &settings.threshold,
+            &settings.total_parties,
+            &settings.path
         )
         .await?,
     );
@@ -45,6 +50,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             &settings.manager_url,
             &settings.rabbitmq_uri,
             &settings.signer3_key_file,
+            &settings.threshold,
+            &settings.total_parties,
+            &settings.path
         )
         .await?,
     );

@@ -1,4 +1,3 @@
-use crate::error::TssError;
 use crate::queue::rabbitmq::RabbitMQService;
 use anyhow::{anyhow, Context, Result};
 use core::slice::SlicePattern;
@@ -6,17 +5,16 @@ use curv::arithmetic::{BasicOps, Converter, Modulo};
 use curv::cryptographic_primitives::proofs::sigma_correct_homomorphic_elgamal_enc::HomoELGamalProof;
 use curv::cryptographic_primitives::proofs::sigma_dlog::DLogProof;
 use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
-use curv::elliptic::curves::{Point, Scalar, Secp256k1};
+use curv::elliptic::curves::Secp256k1;
 use curv::BigInt;
 use multi_party_ecdsa::protocols::multi_party_ecdsa::gg_2018::party_i::*;
 use multi_party_ecdsa::utilities::mta::{MessageA, MessageB};
 use paillier::EncryptionKey;
 use reqwest::Client;
-use rocket::http::hyper::request;
 use serde_json::{json, Value};
 use sha2::Sha256;
 use std::fs::File;
-use std::io::{self, Read};
+use std::io::{Read};
 use std::{fs, thread, time};
 use tracing::{error, info};
 
@@ -25,7 +23,7 @@ use crate::common::{
     Params, PartySignup, PartySignupRequestBody, SignatureData, SignerResult, SigningPartySignup,
     SigningRequest,
 };
-use crate::config::{PARTIES, PATH, THRESHOLD};
+// use crate::config::{PARTIES, PATH, THRESHOLD};
 use crate::signer::hd_keys;
 use crate::signer::secp256k1def::{FE, GE};
 
@@ -43,15 +41,20 @@ pub struct SignerService {
     queue: RabbitMQService,
     manager_url: String,
     signer_data: SignerData,
+    threshold : u16,
+    total_parties :u16,
+    path: String
+
 }
 
 impl SignerService {
-    pub async fn new(manager_url: &str, rabbitmq_uri: &str, key_file: &str) -> Result<Self> {
+    pub async fn new(manager_url: &str, rabbitmq_uri: &str, key_file: &str, threshold: &u16, total_parties: &u16, path: &str) -> Result<Self> {
         let client = Client::new();
         let queue = RabbitMQService::new(rabbitmq_uri).await?;
         let mut file = File::open(key_file)?;
         let mut contents = String::new();
         file.read_to_string(&mut contents)?;
+        
 
         let (party_keys, shared_keys, party_id, vss_scheme_vec, paillier_key_vector, y_sum): (
             Keys,
@@ -74,6 +77,9 @@ impl SignerService {
                 paillier_key_vector,
                 y_sum,
             },
+            threshold: *threshold,
+            total_parties: *total_parties ,
+            path: path.to_string(),
         })
     }
 
@@ -99,9 +105,9 @@ impl SignerService {
     pub async fn handle_signing_request(&self, request: SigningRequest) -> Result<()> {
         // this can be dynamic as well
         let params = Params {
-            threshold: THRESHOLD,
-            parties: PARTIES,
-            path: PATH.to_string(),
+            threshold: self.threshold,
+            parties: self.total_parties,
+            path: self.path.clone(),
         };
         self.sign(&request.message, &request.id, &params).await;
         Ok(())
@@ -117,17 +123,17 @@ impl SignerService {
             false => call_hd_key(&params.path, self.signer_data.y_sum.clone()),
         };
 
-        let addr = "http://localhost:8000".to_string();
+        let addr: String = "http://localhost:8000".to_string();
         let party_keys = self.signer_data.party_keys.clone();
         let shared_keys = self.signer_data.shared_keys.clone();
-        let party_id = self.signer_data.party_id.clone();
+        let party_id = self.signer_data.party_id;
         let mut vss_scheme_vec = self.signer_data.vss_scheme_vec.clone();
         let paillier_key_vector = self.signer_data.paillier_key_vector.clone();
         let sign_at_path = !path_is_empty;
 
         // Signup
         let (party_num_int, uuid, total_parties) =
-            match Self::signup(&addr, &client, THRESHOLD, room_id, party_id)
+            match Self::signup(&addr, &client, self.threshold, room_id, party_id)
                 .await
                 .unwrap()
             {
@@ -168,11 +174,11 @@ impl SignerService {
             } else {
                 let signer_j: u16 = serde_json::from_str(&round0_ans_vec[j]).unwrap();
                 signers_vec.push(signer_j - 1);
-                j = j + 1;
+                j += 1;
             }
         }
 
-        if sign_at_path == true {
+        if sign_at_path {
             // optimize!
             let g: GE = GE::generator().to_point();
             // apply on first commitment for leader (leader is party with num=1)
@@ -205,7 +211,7 @@ impl SignerService {
 
         let mut private = PartyPrivate::set_private(party_keys.clone(), shared_keys);
 
-        if sign_at_path == true {
+        if sign_at_path {
             if party_num_int == 1 {
                 // update u_i and x_i for leader
                 private = private.update_private_key(&f_l_new, &f_l_new);
@@ -261,7 +267,7 @@ impl SignerService {
                 bc1_vec.push(bc1_j);
                 m_a_vec.push(m_a_party_j);
 
-                j = j + 1;
+                j += 1;
                 //       }
             }
         }
@@ -293,7 +299,7 @@ impl SignerService {
                 m_b_w_send_vec.push(m_b_w);
                 beta_vec.push(beta_gamma);
                 ni_vec.push(beta_wi);
-                j = j + 1;
+                j += 1;
             }
         }
 
@@ -303,8 +309,8 @@ impl SignerService {
                 assert!(sendp2p(
                     &addr,
                     &client,
-                    party_num_int.clone(),
-                    i.clone(),
+                    party_num_int,
+                    i,
                     "round2",
                     serde_json::to_string(&(
                         m_b_gamma_send_vec[j].clone(),
@@ -315,7 +321,7 @@ impl SignerService {
                 )
                 .await
                 .is_ok());
-                j = j + 1;
+                j += 1;
             }
         }
 
@@ -371,7 +377,7 @@ impl SignerService {
                 //println!("Verifying client {}", party_num_int);
                 assert_eq!(m_b.b_proof.pk.clone(), g_w_i);
                 //println!("Verified client {}", party_num_int);
-                j = j + 1;
+                j += 1;
             }
         }
         //////////////////////////////////////////////////////////////////////////////
@@ -464,7 +470,7 @@ impl SignerService {
         assert!(broadcast(
             &addr,
             &client,
-            party_num_int.clone(),
+            party_num_int,
             "round5",
             serde_json::to_string(&phase5_com).unwrap(),
             uuid.clone(),
@@ -474,9 +480,9 @@ impl SignerService {
         let round5_ans_vec = poll_for_broadcasts(
             &addr,
             &client,
-            party_num_int.clone(),
+            party_num_int,
             total_parties,
-            delay.clone(),
+            delay,
             "round5",
             uuid.clone(),
         )
@@ -485,7 +491,7 @@ impl SignerService {
         let mut commit5a_vec: Vec<Phase5Com1> = Vec::new();
         format_vec_from_reads(
             &round5_ans_vec,
-            party_num_int.clone() as usize,
+            party_num_int as usize,
             phase5_com,
             &mut commit5a_vec,
         );
@@ -494,7 +500,7 @@ impl SignerService {
         assert!(broadcast(
             &addr,
             &client,
-            party_num_int.clone(),
+            party_num_int,
             "round6",
             serde_json::to_string(&(
                 phase_5a_decom.clone(),
@@ -509,9 +515,9 @@ impl SignerService {
         let round6_ans_vec = poll_for_broadcasts(
             &addr,
             &client,
-            party_num_int.clone(),
+            party_num_int,
             total_parties,
-            delay.clone(),
+            delay,
             "round6",
             uuid.clone(),
         )
@@ -559,7 +565,7 @@ impl SignerService {
         assert!(broadcast(
             &addr,
             &client,
-            party_num_int.clone(),
+            party_num_int,
             "round7",
             serde_json::to_string(&phase5_com2).unwrap(),
             uuid.clone(),
@@ -569,9 +575,9 @@ impl SignerService {
         let round7_ans_vec = poll_for_broadcasts(
             &addr,
             &client,
-            party_num_int.clone(),
+            party_num_int,
             total_parties,
-            delay.clone(),
+            delay,
             "round7",
             uuid.clone(),
         )
@@ -580,7 +586,7 @@ impl SignerService {
         let mut commit5c_vec: Vec<Phase5Com2> = Vec::new();
         format_vec_from_reads(
             &round7_ans_vec,
-            party_num_int.clone() as usize,
+            party_num_int as usize,
             phase5_com2,
             &mut commit5c_vec,
         );
@@ -589,7 +595,7 @@ impl SignerService {
         assert!(broadcast(
             &addr,
             &client,
-            party_num_int.clone(),
+            party_num_int,
             "round8",
             serde_json::to_string(&phase_5d_decom2).unwrap(),
             uuid.clone(),
@@ -599,9 +605,9 @@ impl SignerService {
         let round8_ans_vec = poll_for_broadcasts(
             &addr,
             &client,
-            party_num_int.clone(),
+            party_num_int,
             total_parties,
-            delay.clone(),
+            delay,
             "round8",
             uuid.clone(),
         )
@@ -610,7 +616,7 @@ impl SignerService {
         let mut decommit5d_vec: Vec<Phase5DDecom2> = Vec::new();
         format_vec_from_reads(
             &round8_ans_vec,
-            party_num_int.clone() as usize,
+            party_num_int as usize,
             phase_5d_decom2.clone(),
             &mut decommit5d_vec,
         );
@@ -630,7 +636,7 @@ impl SignerService {
         assert!(broadcast(
             &addr,
             &client,
-            party_num_int.clone(),
+            party_num_int,
             "round9",
             serde_json::to_string(&s_i).unwrap(),
             uuid.clone(),
@@ -640,9 +646,9 @@ impl SignerService {
         let round9_ans_vec = poll_for_broadcasts(
             &addr,
             &client,
-            party_num_int.clone(),
+            party_num_int,
             total_parties,
-            delay.clone(),
+            delay,
             "round9",
             uuid.clone(),
         )
@@ -651,7 +657,7 @@ impl SignerService {
         let mut s_i_vec: Vec<FE> = Vec::new();
         format_vec_from_reads(
             &round9_ans_vec,
-            party_num_int.clone() as usize,
+            party_num_int as usize,
             s_i,
             &mut s_i_vec,
         );
@@ -723,7 +729,7 @@ impl SignerService {
             .unwrap_or("30".to_string())
             .parse::<u64>()
             .unwrap();
-        let res_body: String = postb(&addr, &client, path, request_body.clone())
+        let res_body: String = postb(addr, client, path, request_body.clone())
             .await
             .unwrap();
 
@@ -749,7 +755,7 @@ impl SignerService {
                 while party_signup.uuid.is_empty() {
                     thread::sleep(delay);
                     request_body.party_uuid = party_uuid.clone();
-                    let res_body = postb(&addr, &client, path, request_body.clone())
+                    let res_body = postb(addr, client, path, request_body.clone())
                         .await
                         .unwrap();
                     let answer: Result<SigningPartySignup, ManagerError> =
@@ -795,7 +801,7 @@ impl SignerService {
             }
         };
 
-        return Ok((output, total_parties));
+        Ok((output, total_parties))
     }
 
     fn load_keys(key_file: &str) -> Result<(Keys, SharedKeys)> {
@@ -963,7 +969,7 @@ impl SignerService {
 
         let mut local_signatures = vec![];
         for ans in round3_ans_vec.iter() {
-            local_signatures.push(serde_json::from_str(&ans)?);
+            local_signatures.push(serde_json::from_str(ans)?);
         }
         Ok(local_signatures)
     }
@@ -1017,7 +1023,7 @@ fn format_vec_from_reads<'a, T: serde::Deserialize<'a> + Clone>(
         } else {
             let value_j: T = serde_json::from_str(&ans_vec[j]).unwrap();
             new_vec.push(value_j);
-            j = j + 1;
+            j += 1;
         }
     }
 }

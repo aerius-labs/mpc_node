@@ -159,7 +159,6 @@
 
 use reqwest::Client;
 use serde_json::{json, Value};
-use std::env;
 use std::process::{Command, Stdio};
 use std::time::Duration;
 use tokio::time::{sleep, timeout};
@@ -170,7 +169,7 @@ use tss_network::manager::api::SigningResponseDTO;
 async fn test_signing_flow() {
     // Start the manager process
     let mut manager = Command::new("cargo")
-        .args(&["run", "--bin", "manager"])
+        .args(["run", "--bin", "manager"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -178,7 +177,7 @@ async fn test_signing_flow() {
 
     // Start the signer process
     let mut signer = Command::new("cargo")
-        .args(&["run", "--bin", "signer"])
+        .args(["run", "--bin", "signer"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()

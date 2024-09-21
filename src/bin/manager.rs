@@ -38,7 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    // Configure and launch the Rocket server
+    
     let rocket_future = rocket::build()
         .manage(manager_service_for_rocket)
         .mount(

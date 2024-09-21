@@ -161,7 +161,6 @@ use lapin::{
     options::*, types::FieldTable, BasicProperties, Channel, Connection, ConnectionProperties,
     ExchangeKind,
 };
-use rocket::response;
 
 pub struct RabbitMQService {
     request_channel: Channel,

@@ -1,12 +1,8 @@
-use crate::common::types::{SigningRequest, SigningResult, SigningStatus};
+use crate::common::types::SigningRequest;
 use crate::common::{MessageStatus, MessageToSignStored, SignerResult};
-use crate::error::TssError;
 use anyhow::Result;
-use mongodb::bson;
-use mongodb::bson::{doc, to_document, Document};
-use mongodb::{Client, Collection, Database};
-use std::convert::TryFrom;
-use std::str::FromStr;
+use mongodb::bson::{doc, to_document};
+use mongodb::{Client, Collection};
 
 pub struct MongoDBStorage {
     requests: Collection<MessageToSignStored>,
