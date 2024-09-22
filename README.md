@@ -21,7 +21,6 @@ TSS Network is a robust implementation of Threshold Signature Scheme (TSS) for d
     - [API Endpoints](#api-endpoints)
   - [API Reference](#api-reference)
     - [Initiate Signing Request](#initiate-signing-request)
-    - [Get Signing Status](#get-signing-status)
     - [Get Signature](#get-signature)
     - [How to test MPC](#how-to-test-mpc)
       - [Command to run test](#command-to-run-test)
@@ -115,22 +114,17 @@ endLine: 92
 3. Set the required configuration parameters in these files. Example:
 
    ```toml
-   [database]
-   mongodb_uri = "mongodb://localhost:27017/tss_network"
-
-   [queue]
-   rabbitmq_uri = "amqp://guest:guest@localhost:5672"
-
-   [manager]
-   port = 8080
-   signing_timeout = 300
-
-   [signer]
-   port = 8081
-
-   [crypto]
+   mongodb_uri = "mongodb://localhost:27017"
+   rabbitmq_uri = "amqp://localhost:5672"
+   manager_url = "http://127.0.0.1"
+   manager_port = 8080
+   signing_timeout = 30
    threshold = 2
    total_parties = 3
+   path = "0/1/2"
+   signer1_key_file = "signer1.store"
+   signer2_key_file = "signer2.store"
+   signer3_key_file = "signer3.store"
    ```
 
 4. Set the `RUN_MODE` environment variable to specify the configuration to use:
@@ -176,7 +170,7 @@ For detailed API usage, refer to the [API Reference](#api-reference) section.
 
 ```json
 {
-"message": "48656c6c6f20576f726c64" // Hex-encoded message to sign
+"message": "Message to sign" // Any string message to sign
 }
 ```
 
@@ -188,28 +182,40 @@ For detailed API usage, refer to the [API Reference](#api-reference) section.
 }
 ```
 
-### Get Signing Status
-
-**Endpoint:** `GET /status/<request_id>`
-
-**Response:**
-```json
-{
-"request_id": "550e8400-e29b-41d4-a716-446655440000",
-"status": "Completed"
-}
-```
-
 
 ### Get Signature
 
-**Endpoint:** `GET /signature/<request_id>`
+It will return signature when ```status``` is ```Completed```.
+
+**Endpoint:** `GET /signing_result/<request_id>`
 
 **Response:**
 ```json
 {
-"request_id": "550e8400-e29b-41d4-a716-446655440000",
-"signature": "48656c6c6f20576f726c64" // Hex-encoded signature
+  "request_id": "994ca821-8462-432a-a47e-97c898c8fe1b",
+  "message": [
+    83,
+    117,
+    110,
+    105,
+    108
+  ],
+  "status": "Completed",
+  "signature": {
+    "r": "ed5f91d15045f73ef7f1067b20f00914697cc09284deb72967ebe091b4e78f57",
+    "s": "2fe1089e63086908dbf93b3ad43a6b672194ea94c53575a8a8210c01ccb04347",
+    "status": "signature_ready",
+    "recid": 1,
+    "x": "e90afacf19e50498e886d2d2a5b22ca34ecfe0b3f063b8d7f1e5eabd37b5f8d8",
+    "y": "aa5d7c0bbf991462d5884999b00b0826d1857dfdd6d07d0b7ce7fed47d5bbf77",
+    "msg_int": [
+      83,
+      117,
+      110,
+      105,
+      108
+    ]
+  }
 }
 ```
 ### How to test MPC
