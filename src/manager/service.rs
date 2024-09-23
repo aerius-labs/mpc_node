@@ -10,8 +10,8 @@ use tokio::sync::RwLock;
 use tracing::info;
 
 pub struct ManagerService {
-    pub(crate) storage: MongoDBStorage,
-    queue: RabbitMQService,
+    pub storage: MongoDBStorage,
+    pub queue: RabbitMQService,
     pub(crate) signing_rooms: Arc<RwLock<HashMap<Key, String>>>,
     pub threshold: u16,
     pub total_parties: u16,

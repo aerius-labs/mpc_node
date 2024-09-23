@@ -5,7 +5,7 @@ pub mod common;
 pub mod manager;
 pub mod queue;
 pub mod signer;
-mod storage;
+pub mod storage;
 
 mod auth;
 pub mod config;

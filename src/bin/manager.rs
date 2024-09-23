@@ -6,8 +6,6 @@ use tss_network::manager::api::{get_signing_result, sign};
 use tss_network::manager::handlers::{get, set, signup_sign, update_signing_result};
 use tss_network::manager::service::ManagerService;
 use rocket::{Config, figment::Figment};
-use serde::Deserialize;
-use std::net::IpAddr;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

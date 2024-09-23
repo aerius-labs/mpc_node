@@ -1,7 +1,6 @@
 use crate::queue::rabbitmq::RabbitMQService;
 use anyhow::{anyhow, Context, Result};
 use core::slice::SlicePattern;
-use std::fmt::format;
 use curv::arithmetic::{BasicOps, Converter, Modulo};
 use curv::cryptographic_primitives::proofs::sigma_correct_homomorphic_elgamal_enc::HomoELGamalProof;
 use curv::cryptographic_primitives::proofs::sigma_dlog::DLogProof;

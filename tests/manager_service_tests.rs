@@ -6,19 +6,29 @@ use tokio::time::{sleep, timeout};
 use tss_network::common::{MessageStatus, MessageToSignStored};
 use tss_network::manager::api::SigningResponseDTO;
 
+fn build_project() {
+    let status = Command::new("cargo")
+        .args(["build", "--release"])
+        .status()
+        .expect("Failed to build project");
+
+    assert!(status.success(), "Build failed");
+}
+
 #[tokio::test]
 async fn test_signing_flow() {
+    // Build the project
+    build_project();
+
     // Start the manager process
-    let mut manager = Command::new("cargo")
-        .args(["run", "--bin", "manager"])
+    let mut manager = Command::new("./target/release/manager")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .expect("Failed to start manager");
 
     // Start the signer process
-    let mut signer = Command::new("cargo")
-        .args(["run", "--bin", "signer"])
+    let mut signer = Command::new("./target/release/signer")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
