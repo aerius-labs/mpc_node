@@ -1,7 +1,6 @@
 use config::{Config, ConfigError, Environment, File};
 use serde::Deserialize;
 
-
 #[derive(Debug, Deserialize)]
 pub struct Settings {
     pub mongodb_uri: String,

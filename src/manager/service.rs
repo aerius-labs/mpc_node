@@ -1,5 +1,5 @@
 use crate::common::{
-    Key, KeyGenRequest, MessageToSignStored, SignerResult, SigningRequest, SigningRoom
+    Key, KeyGenRequest, MessageToSignStored, SignerResult, SigningRequest, SigningRoom,
 };
 use crate::queue::rabbitmq::RabbitMQService;
 use crate::storage::mongodb::MongoDBStorage;
@@ -79,10 +79,8 @@ impl ManagerService {
     async fn initiate_signing(&self, message: &[u8]) -> Result<String> {
         let room_id = crate::common::sha256_digest(message);
         let mut signing_rooms = self.signing_rooms.write().await;
-        let signing_room = serde_json::to_string(&SigningRoom::new(
-            room_id.clone(),
-            self.total_parties,
-        ))?;
+        let signing_room =
+            serde_json::to_string(&SigningRoom::new(room_id.clone(), self.total_parties))?;
         signing_rooms.insert(room_id.clone(), signing_room);
         Ok(room_id)
     }
@@ -110,19 +108,21 @@ impl ManagerService {
         Ok(())
     }
 
-    pub async fn process_keygen_request(&self, request: KeyGenRequest, manager_addr: &String) -> Result<()> {
+    pub async fn process_keygen_request(
+        &self,
+        request: KeyGenRequest,
+        manager_addr: &String,
+    ) -> Result<Vec<String>> {
         self.storage.insert_key_gen_request(&request).await?;
         let total_parties = request.keygen_params.parties;
         let tasks: Vec<_> = (0..total_parties)
             .map(|party_id| {
                 let manager_addr = manager_addr.clone();
                 let request = request.clone();
-                task::spawn( async move {
-                    run_keygen(&manager_addr, &request).await
-                })
+                task::spawn(async move { run_keygen(&manager_addr, &request).await })
             })
             .collect();
-            
+
         let results = join_all(tasks).await;
 
         // Collect successful results and aggregate errors
@@ -141,7 +141,9 @@ impl ManagerService {
             eprintln!("Errors occurred during key generation: {:?}", errors);
         }
 
-        self.storage.update_key_gen_result(&request.id, successful_results).await?;
-        Ok(())
+        self.storage
+            .update_key_gen_result(&request.id, successful_results.clone())
+            .await?;
+        Ok(successful_results)
     }
 }

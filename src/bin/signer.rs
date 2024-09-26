@@ -25,9 +25,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 &settings.rabbitmq_uri,
                 key_file,
                 &settings.threshold,
-                &settings.total_parties, 
-                &settings.path
-            ).await?,
+                &settings.total_parties,
+                &settings.path,
+            )
+            .await?,
         );
 
         let signer_task = task::spawn(async move {

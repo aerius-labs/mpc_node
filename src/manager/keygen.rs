@@ -1,22 +1,24 @@
 use std::{fs, time};
 
+use crate::common::{
+    secp256k1def::{FE, GE},
+    KeyGenParams, KeyGenRequest,
+};
 use anyhow::Result;
+use curv::elliptic::curves::Secp256k1;
 use curv::{
     arithmetic::traits::Converter,
     cryptographic_primitives::{
         proofs::sigma_dlog::DLogProof, secret_sharing::feldman_vss::VerifiableSS,
     },
     BigInt,
-
 };
 use multi_party_ecdsa::protocols::multi_party_ecdsa::gg_2018::party_i::{
     KeyGenBroadcastMessage1, KeyGenDecommitMessage1, Keys, Parameters,
 };
 use paillier::EncryptionKey;
 use reqwest::Client;
-use curv::elliptic::curves::{ Secp256k1};
-use sha2::{Sha256};
-use crate::common::{secp256k1def::{FE, GE}, KeyGenParams, KeyGenRequest};
+use sha2::Sha256;
 
 use crate::common::{
     aes_decrypt, aes_encrypt, broadcast, poll_for_broadcasts, poll_for_p2p, postb, sendp2p, Params,
@@ -69,7 +71,8 @@ pub async fn run_keygen(addr: &String, keygen_request: &KeyGenRequest) -> Result
         delay,
         "round1",
         uuid.clone(),
-    ).await;
+    )
+    .await;
 
     let mut bc1_vec = round1_ans_vec
         .iter()
@@ -97,7 +100,8 @@ pub async fn run_keygen(addr: &String, keygen_request: &KeyGenRequest) -> Result
         delay,
         "round2",
         uuid.clone(),
-    ).await;
+    )
+    .await;
 
     let mut j = 0;
     let mut point_vec: Vec<GE> = Vec::new();
@@ -157,7 +161,8 @@ pub async fn run_keygen(addr: &String, keygen_request: &KeyGenRequest) -> Result
         delay,
         "round3",
         uuid.clone(),
-    ).await;
+    )
+    .await;
 
     let mut j = 0;
     let mut party_shares: Vec<FE> = Vec::new();
@@ -195,7 +200,8 @@ pub async fn run_keygen(addr: &String, keygen_request: &KeyGenRequest) -> Result
         delay,
         "round4",
         uuid.clone(),
-    ).await;
+    )
+    .await;
 
     let mut j = 0;
     let mut vss_scheme_vec: Vec<VerifiableSS<Secp256k1>> = Vec::new();
@@ -203,7 +209,8 @@ pub async fn run_keygen(addr: &String, keygen_request: &KeyGenRequest) -> Result
         if i == party_num_int {
             vss_scheme_vec.push(vss_scheme.clone());
         } else {
-            let vss_scheme_j: VerifiableSS<Secp256k1> = serde_json::from_str(&round4_ans_vec[j]).unwrap();
+            let vss_scheme_j: VerifiableSS<Secp256k1> =
+                serde_json::from_str(&round4_ans_vec[j]).unwrap();
             vss_scheme_vec.push(vss_scheme_j);
             j += 1;
         }
@@ -238,7 +245,8 @@ pub async fn run_keygen(addr: &String, keygen_request: &KeyGenRequest) -> Result
         delay,
         "round5",
         uuid.clone(),
-    ).await;
+    )
+    .await;
 
     let mut j = 0;
     let mut dlog_proof_vec: Vec<DLogProof<Secp256k1, Sha256>> = Vec::new();
@@ -246,7 +254,8 @@ pub async fn run_keygen(addr: &String, keygen_request: &KeyGenRequest) -> Result
         if i == party_num_int {
             dlog_proof_vec.push(dlog_proof.clone());
         } else {
-            let dlog_proof_j: DLogProof<Secp256k1, Sha256> = serde_json::from_str(&round5_ans_vec[j]).unwrap();
+            let dlog_proof_j: DLogProof<Secp256k1, Sha256> =
+                serde_json::from_str(&round5_ans_vec[j]).unwrap();
             dlog_proof_vec.push(dlog_proof_j);
             j += 1;
         }
@@ -270,8 +279,13 @@ pub async fn run_keygen(addr: &String, keygen_request: &KeyGenRequest) -> Result
     Ok(keygen_json)
 }
 
-pub async fn keygen_signup(addr: &String, client: &Client, params: KeyGenParams) -> Result<PartySignup, ()> {
-    let res_body = postb::<KeyGenParams>(&addr, &client, "signupkeygen", params).await.unwrap();
+pub async fn keygen_signup(
+    addr: &String,
+    client: &Client,
+    params: KeyGenParams,
+) -> Result<PartySignup, ()> {
+    let res_body = postb::<KeyGenParams>(&addr, &client, "signupkeygen", params)
+        .await
+        .unwrap();
     serde_json::from_str(&res_body).unwrap()
 }
-

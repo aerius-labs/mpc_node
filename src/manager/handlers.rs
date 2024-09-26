@@ -1,12 +1,13 @@
 use crate::common::{
-    Entry, Index, KeyGenParams, ManagerError, PartySignup, PartySignupRequestBody, SignerResult, SigningPartySignup, SigningRoom
+    Entry, Index, KeyGenParams, ManagerError, PartySignup, PartySignupRequestBody, SignerResult,
+    SigningPartySignup, SigningRoom,
 };
 use crate::error::TssError;
 use crate::manager::ManagerService;
 use rocket::http::Status;
+use rocket::post;
 use rocket::response::Responder;
 use rocket::serde::json::Json;
-use rocket::post;
 use rocket::{Request, State};
 use std::sync::Arc;
 

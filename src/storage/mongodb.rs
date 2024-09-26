@@ -38,13 +38,19 @@ impl MongoDBStorage {
             key_gen_params: request.keygen_params.clone(),
             keys: None,
         };
-        self.keys_gen_requests.insert_one(keys_to_store, None).await?;
+        self.keys_gen_requests
+            .insert_one(keys_to_store, None)
+            .await?;
         Ok(())
     }
 
     pub async fn update_key_gen_result(&self, request_id: &str, keys: Vec<String>) -> Result<()> {
         let filter = doc! { "request_id": request_id };
-        if let Some(mut stored_keys) = self.keys_gen_requests.find_one(filter.clone(), None).await? {
+        if let Some(mut stored_keys) = self
+            .keys_gen_requests
+            .find_one(filter.clone(), None)
+            .await?
+        {
             if stored_keys.status == MessageStatus::Pending {
                 stored_keys.keys = Some(keys);
                 stored_keys.status = MessageStatus::Completed;
