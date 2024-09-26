@@ -1,13 +1,18 @@
 use crate::common::{
-    Key, MessageToSignStored, SignerResult, SigningRequest, SigningRoom,
+    Key, KeyGenRequest, MessageToSignStored, SignerResult, SigningRequest, SigningRoom
 };
 use crate::queue::rabbitmq::RabbitMQService;
 use crate::storage::mongodb::MongoDBStorage;
 use anyhow::Result;
+use futures::future::join_all;
 use std::collections::HashMap;
+use std::result;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use tokio::task;
 use tracing::info;
+
+use super::keygen::{self, run_keygen};
 
 pub struct ManagerService {
     pub storage: MongoDBStorage,
@@ -102,6 +107,41 @@ impl ManagerService {
     pub async fn process_signing_request(&self, request: SigningRequest) -> Result<()> {
         self.storage.insert_request(&request).await?;
         self.queue.publish_signing_request(&request).await?;
+        Ok(())
+    }
+
+    pub async fn process_keygen_request(&self, request: KeyGenRequest, manager_addr: &String) -> Result<()> {
+        self.storage.insert_key_gen_request(&request).await?;
+        let total_parties = request.keygen_params.parties;
+        let tasks: Vec<_> = (0..total_parties)
+            .map(|party_id| {
+                let manager_addr = manager_addr.clone();
+                let request = request.clone();
+                task::spawn( async move {
+                    run_keygen(&manager_addr, &request).await
+                })
+            })
+            .collect();
+            
+        let results = join_all(tasks).await;
+
+        // Collect successful results and aggregate errors
+        let mut successful_results = Vec::new();
+        let mut errors = Vec::new();
+
+        for (index, res) in results.into_iter().enumerate() {
+            match res {
+                Ok(Ok(json_str)) => successful_results.push(json_str),
+                Ok(Err(e)) => errors.push(format!("Error in party {}: {}", index, e)),
+                Err(e) => errors.push(format!("Task error in party {}: {}", index, e)),
+            }
+        }
+
+        if !errors.is_empty() {
+            eprintln!("Errors occurred during key generation: {:?}", errors);
+        }
+
+        self.storage.update_key_gen_result(&request.id, successful_results).await?;
         Ok(())
     }
 }

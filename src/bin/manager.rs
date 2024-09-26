@@ -2,8 +2,8 @@ use rocket::routes;
 use std::sync::Arc;
 use tokio::task;
 use tss_network::config::Settings;
-use tss_network::manager::api::{get_signing_result, sign};
-use tss_network::manager::handlers::{get, set, signup_sign, update_signing_result};
+use tss_network::manager::api::{get_signing_result, sign, generate_keys};
+use tss_network::manager::handlers::{get, set, signup_sign, update_signing_result, signup_keygen};
 use tss_network::manager::service::ManagerService;
 use rocket::{Config, figment::Figment};
 
@@ -55,7 +55,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 set,
                 get,
                 get_signing_result,
-                update_signing_result
+                update_signing_result,
+                generate_keys,
+                signup_keygen,
             ],
         )
         .launch();

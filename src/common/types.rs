@@ -16,6 +16,7 @@ pub struct MessageToSignStored {
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum MessageStatus {
     Pending,
+    InProgress,
     Completed,
 }
 
@@ -64,6 +65,26 @@ pub struct Params {
     pub parties: u16,
     pub threshold: u16,
     pub path: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct KeyGenParams {
+    pub parties: u16,
+    pub threshold: u16,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct KeysToStore {
+    pub request_id: String,
+    pub status: MessageStatus,
+    pub key_gen_params: KeyGenParams,
+    pub keys: Option<Vec<String>>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct KeyGenRequest {
+    pub id: String,
+    pub keygen_params: KeyGenParams,
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
