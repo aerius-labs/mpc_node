@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::common::types::SigningRequest;
-use crate::common::{KeyGenParams, KeyGenRequest, MessageToSignStored};
+use crate::common::{KeyGenParams, KeyGenRequest, KeysToStore, MessageToSignStored};
 use crate::error::TssError;
 use crate::manager::service::ManagerService;
 use anyhow::Context;
@@ -104,4 +104,13 @@ pub async fn generate_keys(
     };
 
     Ok(Created::new("/").body(Json(response)))
+}
+
+#[get("/key_gen_result/<request_id>")]
+pub async fn get_key_gen_result(
+    manager: &State<Arc<ManagerService>>,
+    request_id: String,
+) -> Result<Json<Option<KeysToStore>>, TssError> {
+    let result = manager.get_key_gen_result(&request_id).await?;
+    Ok(Json(result))
 }

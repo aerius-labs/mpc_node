@@ -1,5 +1,5 @@
 use crate::common::{
-    Key, KeyGenRequest, MessageToSignStored, SignerResult, SigningRequest, SigningRoom,
+    Key, KeyGenRequest, KeysToStore, MessageToSignStored, SignerResult, SigningRequest, SigningRoom,
 };
 use crate::queue::rabbitmq::RabbitMQService;
 use crate::storage::mongodb::MongoDBStorage;
@@ -145,5 +145,9 @@ impl ManagerService {
             .update_key_gen_result(&request.id, successful_results.clone())
             .await?;
         Ok(successful_results)
+    }
+
+    pub async fn get_key_gen_result(&self, request_id: &str) -> Result<Option<KeysToStore>> {
+        self.storage.get_key_gen_result(request_id).await
     }
 }

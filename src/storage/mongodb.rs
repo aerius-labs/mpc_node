@@ -63,6 +63,15 @@ impl MongoDBStorage {
         Ok(())
     }
 
+    pub async fn get_key_gen_result(&self, request_id: &str) -> Result<Option<KeysToStore>> {
+        let filter = doc! { "request_id": request_id };
+        if let Some(doc) = self.keys_gen_requests.find_one(filter, None).await? {
+            Ok(Some(doc))
+        } else {
+            Ok(None)
+        }
+    }
+
     pub async fn get_signing_result(&self, id: &str) -> Result<Option<MessageToSignStored>> {
         let filter = doc! { "request_id": id };
         if let Some(doc) = self.requests.find_one(filter, None).await? {

@@ -3,7 +3,7 @@ use rocket::{figment::Figment, Config};
 use std::sync::Arc;
 use tokio::task;
 use tss_network::config::Settings;
-use tss_network::manager::api::{generate_keys, get_signing_result, sign};
+use tss_network::manager::api::{generate_keys, get_key_gen_result, get_signing_result, sign};
 use tss_network::manager::handlers::{get, set, signup_keygen, signup_sign, update_signing_result};
 use tss_network::manager::service::ManagerService;
 
@@ -62,6 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 update_signing_result,
                 generate_keys,
                 signup_keygen,
+                get_key_gen_result
             ],
         )
         .launch();
