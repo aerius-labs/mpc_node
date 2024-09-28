@@ -1,11 +1,12 @@
 use crate::common::types::SigningRequest;
-use crate::common::{MessageStatus, MessageToSignStored, SignerResult};
+use crate::common::{KeyGenRequest, KeysToStore, MessageStatus, MessageToSignStored, SignerResult};
 use anyhow::Result;
 use mongodb::bson::{doc, to_document};
 use mongodb::{Client, Collection};
 
 pub struct MongoDBStorage {
     requests: Collection<MessageToSignStored>,
+    keys_gen_requests: Collection<KeysToStore>,
 }
 
 impl MongoDBStorage {
@@ -15,6 +16,7 @@ impl MongoDBStorage {
 
         Ok(Self {
             requests: db.collection::<MessageToSignStored>("messages_to_sign"),
+            keys_gen_requests: db.collection::<KeysToStore>("keys_gen_requests"),
         })
     }
 
@@ -27,6 +29,47 @@ impl MongoDBStorage {
         };
         self.requests.insert_one(message_to_sign, None).await?;
         Ok(())
+    }
+
+    pub async fn insert_key_gen_request(&self, request: &KeyGenRequest) -> Result<()> {
+        let keys_to_store = KeysToStore {
+            request_id: request.id.clone(),
+            status: MessageStatus::Pending,
+            key_gen_params: request.keygen_params.clone(),
+            keys: None,
+        };
+        self.keys_gen_requests
+            .insert_one(keys_to_store, None)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn update_key_gen_result(&self, request_id: &str, keys: Vec<String>) -> Result<()> {
+        let filter = doc! { "request_id": request_id };
+        if let Some(mut stored_keys) = self
+            .keys_gen_requests
+            .find_one(filter.clone(), None)
+            .await?
+        {
+            if stored_keys.status == MessageStatus::Pending {
+                stored_keys.keys = Some(keys);
+                stored_keys.status = MessageStatus::Completed;
+                let update_doc = to_document(&stored_keys)?;
+                self.keys_gen_requests
+                    .update_one(filter, doc! { "$set": update_doc }, None)
+                    .await?;
+            }
+        }
+        Ok(())
+    }
+
+    pub async fn get_key_gen_result(&self, request_id: &str) -> Result<Option<KeysToStore>> {
+        let filter = doc! { "request_id": request_id };
+        if let Some(doc) = self.keys_gen_requests.find_one(filter, None).await? {
+            Ok(Some(doc))
+        } else {
+            Ok(None)
+        }
     }
 
     pub async fn get_signing_result(&self, id: &str) -> Result<Option<MessageToSignStored>> {

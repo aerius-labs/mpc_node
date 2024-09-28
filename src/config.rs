@@ -1,7 +1,6 @@
 use config::{Config, ConfigError, Environment, File};
 use serde::Deserialize;
 
-
 #[derive(Debug, Deserialize)]
 pub struct Settings {
     pub mongodb_uri: String,
@@ -12,9 +11,7 @@ pub struct Settings {
     pub threshold: u16,
     pub total_parties: u16,
     pub path: String,
-    pub signer1_key_file: String,
-    pub signer2_key_file: String,
-    pub signer3_key_file: String,
+    pub signer_key_files: Vec<String>,
 }
 
 impl Settings {
@@ -29,7 +26,7 @@ impl Settings {
         builder = builder.add_source(File::with_name("config/local").required(false));
 
         builder = builder.add_source(Environment::with_prefix("app"));
-        print!("config: {:?}", builder);
+        println!("config: {:?}", builder);
         builder.build()?.try_deserialize()
     }
 }

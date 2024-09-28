@@ -104,11 +104,7 @@ impl SigningRoom {
     }
 
     pub fn are_all_members_inactive(&self) -> bool {
-        self.is_full()
-            && self
-                .member_info
-                .values()
-                .all(SigningRoom::is_timeout)
+        self.is_full() && self.member_info.values().all(SigningRoom::is_timeout)
     }
 
     pub fn is_member_active(&self, party_number: u16) -> bool {

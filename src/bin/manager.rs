@@ -1,13 +1,11 @@
 use rocket::routes;
+use rocket::{figment::Figment, Config};
 use std::sync::Arc;
 use tokio::task;
 use tss_network::config::Settings;
-use tss_network::manager::api::{get_signing_result, sign};
-use tss_network::manager::handlers::{get, set, signup_sign, update_signing_result};
+use tss_network::manager::api::{generate_keys, get_key_gen_result, get_signing_result, sign};
+use tss_network::manager::handlers::{get, set, signup_keygen, signup_sign, update_signing_result};
 use tss_network::manager::service::ManagerService;
-use rocket::{Config, figment::Figment};
-use serde::Deserialize;
-use std::net::IpAddr;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -41,10 +39,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    let ip = settings.manager_url.split("://").nth(1).unwrap_or(&settings.manager_url);
+    let ip = settings
+        .manager_url
+        .split("://")
+        .nth(1)
+        .unwrap_or(&settings.manager_url);
     let figment = Figment::from(Config::default())
-    .merge(("address", ip))
-    .merge(("port", settings.manager_port));
+        .merge(("address", ip))
+        .merge(("port", settings.manager_port));
     let config: rocket::Config = figment.extract().expect("Failed to extract Rocket config");
 
     let rocket_future = rocket::custom(config)
@@ -57,7 +59,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 set,
                 get,
                 get_signing_result,
-                update_signing_result
+                update_signing_result,
+                generate_keys,
+                signup_keygen,
+                get_key_gen_result
             ],
         )
         .launch();

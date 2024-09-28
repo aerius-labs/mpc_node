@@ -1,13 +1,13 @@
 use crate::common::{
-    Entry, Index, ManagerError, PartySignupRequestBody,
-    SignerResult, SigningPartySignup, SigningRoom,
+    Entry, Index, KeyGenParams, ManagerError, PartySignup, PartySignupRequestBody, SignerResult,
+    SigningPartySignup, SigningRoom,
 };
 use crate::error::TssError;
 use crate::manager::ManagerService;
 use rocket::http::Status;
+use rocket::post;
 use rocket::response::Responder;
 use rocket::serde::json::Json;
-use rocket::post;
 use rocket::{Request, State};
 use std::sync::Arc;
 
@@ -41,6 +41,41 @@ pub async fn set(
     let mut signing_rooms = manager.signing_rooms.write().await;
     signing_rooms.insert(entry.key.clone(), entry.value.clone());
     Json(Ok(()))
+}
+
+#[post("/signupkeygen", format = "json", data = "<request>")]
+pub async fn signup_keygen(
+    manager: &State<Arc<ManagerService>>,
+    request: Json<KeyGenParams>,
+) -> Json<Result<PartySignup, ManagerError>> {
+    let parties = request.parties;
+    let key = "signup-keygen".to_string();
+    let mut hm = manager.signing_rooms.write().await;
+
+    let client_signup = match hm.get(&key) {
+        Some(o) => serde_json::from_str(o).unwrap(),
+        None => PartySignup {
+            number: 0,
+            uuid: uuid::Uuid::new_v4().to_string(),
+        },
+    };
+
+    let party_signup = {
+        if client_signup.number < parties {
+            PartySignup {
+                number: client_signup.number + 1,
+                uuid: client_signup.uuid,
+            }
+        } else {
+            PartySignup {
+                number: 1,
+                uuid: uuid::Uuid::new_v4().to_string(),
+            }
+        }
+    };
+
+    hm.insert(key, serde_json::to_string(&party_signup).unwrap());
+    Json(Ok(party_signup))
 }
 
 #[post("/signupsign", format = "json", data = "<request>")]

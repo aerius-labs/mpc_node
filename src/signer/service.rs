@@ -1,7 +1,6 @@
 use crate::queue::rabbitmq::RabbitMQService;
 use anyhow::{anyhow, Context, Result};
 use core::slice::SlicePattern;
-use std::fmt::format;
 use curv::arithmetic::{BasicOps, Converter, Modulo};
 use curv::cryptographic_primitives::proofs::sigma_correct_homomorphic_elgamal_enc::HomoELGamalProof;
 use curv::cryptographic_primitives::proofs::sigma_dlog::DLogProof;
@@ -15,7 +14,7 @@ use reqwest::Client;
 use serde_json::{json, Value};
 use sha2::Sha256;
 use std::fs::File;
-use std::io::{Read};
+use std::io::Read;
 use std::{fs, thread, time};
 use tracing::{error, info};
 
@@ -43,20 +42,26 @@ pub struct SignerService {
     manager_url: String,
     manager_port: String,
     signer_data: SignerData,
-    threshold : u16,
-    total_parties :u16,
-    path: String
-
+    threshold: u16,
+    total_parties: u16,
+    path: String,
 }
 
 impl SignerService {
-    pub async fn new(manager_url: &str, manager_port: &u16, rabbitmq_uri: &str, key_file: &str, threshold: &u16, total_parties: &u16, path: &str) -> Result<Self> {
+    pub async fn new(
+        manager_url: &str,
+        manager_port: &u16,
+        rabbitmq_uri: &str,
+        key_file: &str,
+        threshold: &u16,
+        total_parties: &u16,
+        path: &str,
+    ) -> Result<Self> {
         let client = Client::new();
         let queue = RabbitMQService::new(rabbitmq_uri).await?;
         let mut file = File::open(key_file)?;
         let mut contents = String::new();
         file.read_to_string(&mut contents)?;
-        
 
         let (party_keys, shared_keys, party_id, vss_scheme_vec, paillier_key_vector, y_sum): (
             Keys,
@@ -81,7 +86,7 @@ impl SignerService {
                 y_sum,
             },
             threshold: *threshold,
-            total_parties: *total_parties ,
+            total_parties: *total_parties,
             path: path.to_string(),
         })
     }
@@ -658,12 +663,7 @@ impl SignerService {
         .await;
 
         let mut s_i_vec: Vec<FE> = Vec::new();
-        format_vec_from_reads(
-            &round9_ans_vec,
-            party_num_int as usize,
-            s_i,
-            &mut s_i_vec,
-        );
+        format_vec_from_reads(&round9_ans_vec, party_num_int as usize, s_i, &mut s_i_vec);
 
         s_i_vec.remove((party_num_int - 1) as usize);
         let sig = local_sig

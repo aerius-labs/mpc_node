@@ -1,17 +1,22 @@
 use crate::common::{
-    Key, MessageToSignStored, SignerResult, SigningRequest, SigningRoom,
+    Key, KeyGenRequest, KeysToStore, MessageToSignStored, SignerResult, SigningRequest, SigningRoom,
 };
 use crate::queue::rabbitmq::RabbitMQService;
 use crate::storage::mongodb::MongoDBStorage;
 use anyhow::Result;
+use futures::future::join_all;
 use std::collections::HashMap;
+use std::result;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use tokio::task;
 use tracing::info;
 
+use super::keygen::{self, run_keygen};
+
 pub struct ManagerService {
-    pub(crate) storage: MongoDBStorage,
-    queue: RabbitMQService,
+    pub storage: MongoDBStorage,
+    pub queue: RabbitMQService,
     pub(crate) signing_rooms: Arc<RwLock<HashMap<Key, String>>>,
     pub threshold: u16,
     pub total_parties: u16,
@@ -74,10 +79,8 @@ impl ManagerService {
     async fn initiate_signing(&self, message: &[u8]) -> Result<String> {
         let room_id = crate::common::sha256_digest(message);
         let mut signing_rooms = self.signing_rooms.write().await;
-        let signing_room = serde_json::to_string(&SigningRoom::new(
-            room_id.clone(),
-            self.total_parties,
-        ))?;
+        let signing_room =
+            serde_json::to_string(&SigningRoom::new(room_id.clone(), self.total_parties))?;
         signing_rooms.insert(room_id.clone(), signing_room);
         Ok(room_id)
     }
@@ -103,5 +106,48 @@ impl ManagerService {
         self.storage.insert_request(&request).await?;
         self.queue.publish_signing_request(&request).await?;
         Ok(())
+    }
+
+    pub async fn process_keygen_request(
+        &self,
+        request: KeyGenRequest,
+        manager_addr: &String,
+    ) -> Result<Vec<String>> {
+        self.storage.insert_key_gen_request(&request).await?;
+        let total_parties = request.keygen_params.parties;
+        let tasks: Vec<_> = (0..total_parties)
+            .map(|party_id| {
+                let manager_addr = manager_addr.clone();
+                let request = request.clone();
+                task::spawn(async move { run_keygen(&manager_addr, &request).await })
+            })
+            .collect();
+
+        let results = join_all(tasks).await;
+
+        // Collect successful results and aggregate errors
+        let mut successful_results = Vec::new();
+        let mut errors = Vec::new();
+
+        for (index, res) in results.into_iter().enumerate() {
+            match res {
+                Ok(Ok(json_str)) => successful_results.push(json_str),
+                Ok(Err(e)) => errors.push(format!("Error in party {}: {}", index, e)),
+                Err(e) => errors.push(format!("Task error in party {}: {}", index, e)),
+            }
+        }
+
+        if !errors.is_empty() {
+            eprintln!("Errors occurred during key generation: {:?}", errors);
+        }
+
+        self.storage
+            .update_key_gen_result(&request.id, successful_results.clone())
+            .await?;
+        Ok(successful_results)
+    }
+
+    pub async fn get_key_gen_result(&self, request_id: &str) -> Result<Option<KeysToStore>> {
+        self.storage.get_key_gen_result(request_id).await
     }
 }
