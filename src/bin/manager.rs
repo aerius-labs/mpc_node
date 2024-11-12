@@ -3,7 +3,7 @@ use rocket::{figment::Figment, Config};
 use std::sync::Arc;
 use tokio::task;
 use tss_network::config::Settings;
-use tss_network::manager::api::{generate_keys, get_key_gen_result, get_signing_result, sign};
+use tss_network::manager::api::{generate_keys, generate_test_token, get_key_gen_result, get_signing_result, sign};
 use tss_network::manager::handlers::{get, set, signup_keygen, signup_sign, update_signing_result};
 use tss_network::manager::service::ManagerService;
 
@@ -51,6 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let rocket_future = rocket::custom(config)
         .manage(manager_service_for_rocket)
+        .manage(Arc::new(settings))
         .mount(
             "/",
             routes![
@@ -62,7 +63,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 update_signing_result,
                 generate_keys,
                 signup_keygen,
-                get_key_gen_result
+                get_key_gen_result,
+                generate_test_token
             ],
         )
         .launch();
