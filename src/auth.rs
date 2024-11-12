@@ -3,6 +3,7 @@ use rocket::http::Status;
 use rocket::request::{FromRequest, Outcome};
 use rocket::{Request, State};
 use serde::{Deserialize, Serialize};
+use tracing::{debug, warn};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -37,6 +38,36 @@ pub struct AuthenticatedUser {
     pub role: Role,
 }
 
+// New struct for IP-based authentication
+pub struct SignerAuth;
+
+
+// New struct for IP-based authentication
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for SignerAuth {
+    type Error = AuthError;
+
+    async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
+        let settings = request
+            .guard::<&State<Arc<Settings>>>()
+            .await
+            .expect("Settings not found in request state");
+
+        if let Some(client_ip) = request.client_ip() {
+            debug!("Signer API request from IP: {}", client_ip);
+            if settings.is_ip_whitelisted(client_ip) {
+                Outcome::Success(SignerAuth)
+            } else {
+                warn!("Unauthorized signer API access attempt from IP: {}", client_ip);
+                Outcome::Error((Status::Unauthorized, AuthError::IpNotAllowed))
+            }
+        } else {
+            warn!("No client IP found in signer API request");
+            Outcome::Error((Status::Unauthorized, AuthError::IpNotAllowed))
+        }
+    }
+}
+
 #[rocket::async_trait]
 impl<'r> FromRequest<'r> for AuthenticatedUser {
     type Error = AuthError;
@@ -45,15 +76,6 @@ impl<'r> FromRequest<'r> for AuthenticatedUser {
 
         let settings = request.guard::<&State<Arc<Settings>>>().await
             .expect("Settings not found in request state");
-
-        // Check IP whitelist for signer endpoints
-        if is_signer_endpoint(request.uri().path().to_string().as_str()) {
-            if let Some(client_ip) = request.client_ip() {
-                if !settings.is_ip_whitelisted(client_ip) {
-                    return Outcome::Error((Status::Unauthorized, AuthError::IpNotAllowed));
-                }
-            }
-        }
 
         // Get and validate JWT token
         let token = request
@@ -84,13 +106,6 @@ impl<'r> FromRequest<'r> for AuthenticatedUser {
     }
 }
 
-fn is_signer_endpoint(path: &str) -> bool {
-    matches!(
-        path,
-        "/signupkeygen" | "/signupsign" | "/set" | "/get" | "/update_signing_result"
-    )
-}
-
 fn has_permission_for_endpoint(role: &Role, path: &str) -> bool {
     match (role, path) {
         // Public endpoints
@@ -98,11 +113,7 @@ fn has_permission_for_endpoint(role: &Role, path: &str) -> bool {
         (Role::Public, path) if path.starts_with("/signing_result/") => true,
 
         // Signer endpoints
-        (Role::Signer, "/signupkeygen") => true,
-        (Role::Signer, "/signupsign") => true,
-        (Role::Signer, "/set") => true,
-        (Role::Signer, "/get") => true,
-        (Role::Signer, "/update_signing_result") => true,
+        (Role::Signer, _) => false,
 
         // Admin endpoints
         (Role::Admin, _) => true,
@@ -123,6 +134,12 @@ pub fn validate_token(token: &str, secret: &str) -> Result<Claims, jsonwebtoken:
 }
 
 pub fn create_token(user_id: &str, role: Role, settings: &Settings) -> Result<String, TssError> {
+
+    match role {
+        Role::Signer => return Err(TssError::AuthError("Cannot create token for Signer role".into())),
+        _ => (),
+    }
+
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
