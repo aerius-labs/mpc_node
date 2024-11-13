@@ -1,4 +1,4 @@
-use crate::common::types::*;
+use crate::{common::types::*, manager::constants::NONCE_SIZE};
 use aes_gcm::{
     aead::{Aead, NewAead},
     Aes256Gcm, Nonce,
@@ -8,6 +8,7 @@ use reqwest::Client;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::{thread, time};
+use rand::{rngs::OsRng, RngCore};
 
 pub fn aes_encrypt(key: &[u8], plaintext: &[u8]) -> AEAD {
     let mut key_sized = [0u8; 32];
@@ -15,7 +16,9 @@ pub fn aes_encrypt(key: &[u8], plaintext: &[u8]) -> AEAD {
     let aes_key = aes_gcm::Key::from_slice(&key_sized);
     let cipher = Aes256Gcm::new(aes_key);
 
-    let nonce = Nonce::from_slice(&[0u8; 12]);
+    let mut nonce_bytes = [0u8; NONCE_SIZE];
+    OsRng.fill_bytes(&mut nonce_bytes);
+    let nonce = Nonce::from_slice(&nonce_bytes);
     let ciphertext = cipher.encrypt(nonce, plaintext).unwrap();
 
     AEAD {

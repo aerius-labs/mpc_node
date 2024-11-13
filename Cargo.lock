@@ -4305,6 +4305,7 @@ dependencies = [
  "metrics-exporter-prometheus",
  "mongodb",
  "multi-party-ecdsa",
+ "rand 0.8.5",
  "reqwest",
  "rocket",
  "serde",
