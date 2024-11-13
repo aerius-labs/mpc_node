@@ -1,5 +1,7 @@
 use crate::common::types::SigningRequest;
 use crate::common::{KeyGenRequest, KeysToStore, MessageStatus, MessageToSignStored, SignerResult};
+use crate::error::TssError;
+use crate::manager::constants::MAX_MESSAGE_SIZE;
 use anyhow::Result;
 use mongodb::bson::{doc, to_document};
 use mongodb::{Client, Collection};
@@ -21,6 +23,10 @@ impl MongoDBStorage {
     }
 
     pub async fn insert_request(&self, request: &SigningRequest) -> Result<()> {
+        if request.message.len() > MAX_MESSAGE_SIZE {
+            return Err(TssError::MessageTooLarge.into());
+        }
+
         let message_to_sign = MessageToSignStored {
             request_id: request.id.clone(),
             message: request.message.clone(),

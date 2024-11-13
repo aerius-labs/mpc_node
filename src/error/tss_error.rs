@@ -46,6 +46,9 @@ pub enum TssError {
 
     #[error("Unexpected error: {0}")]
     UnexpectedError(String),
+
+    #[error("Message too large")]
+    MessageTooLarge,
 }
 
 impl From<lapin::Error> for TssError {
