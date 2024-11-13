@@ -20,7 +20,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ManagerService::new(
             &settings.mongodb_uri,
             &settings.rabbitmq_uri,
-            settings.signing_timeout,
             settings.threshold,
             settings.total_parties,
         )
@@ -70,7 +69,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .launch();
 
     tokio::select! {
-        _ = manager_task => println!("ManagerService task completed"),
         _ = rocket_future => println!("Rocket server shut down"),
     }
     Ok(())
