@@ -36,7 +36,6 @@ struct SignerData {
 }
 
 pub struct SignerService {
-    client: Client,
     queue: RabbitMQService,
     manager_url: String,
     manager_port: String,
@@ -46,6 +45,7 @@ pub struct SignerService {
     path: String,
 }
 
+#[allow(non_snake_case)]
 impl SignerService {
     pub async fn new(
         manager_url: &str,
@@ -56,7 +56,6 @@ impl SignerService {
         total_parties: &u16,
         path: &str,
     ) -> Result<Self> {
-        let client = Client::new();
         let queue = RabbitMQService::new(rabbitmq_uri).await?;
         let mut file = File::open(key_file)?;
         let mut contents = String::new();
@@ -72,7 +71,6 @@ impl SignerService {
         ) = serde_json::from_str(&contents).unwrap();
 
         Ok(Self {
-            client,
             queue,
             manager_url: manager_url.to_string(),
             manager_port: manager_port.to_string(),
@@ -455,6 +453,8 @@ impl SignerService {
         let b_proof_vec = (0..m_b_gamma_rec_vec.len())
             .map(|i| &m_b_gamma_rec_vec[i].b_proof)
             .collect::<Vec<&DLogProof<Secp256k1, Sha256>>>();
+
+        
         let R = SignKeys::phase4(&delta_inv, &b_proof_vec, decommit_vec, &bc1_vec)
             .expect("bad gamma_i decommit");
 
