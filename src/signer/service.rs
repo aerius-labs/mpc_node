@@ -454,7 +454,6 @@ impl SignerService {
             .map(|i| &m_b_gamma_rec_vec[i].b_proof)
             .collect::<Vec<&DLogProof<Secp256k1, Sha256>>>();
 
-        
         let R = SignKeys::phase4(&delta_inv, &b_proof_vec, decommit_vec, &bc1_vec)
             .expect("bad gamma_i decommit");
 

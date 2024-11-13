@@ -42,7 +42,8 @@ impl Settings {
 
     // Helper method to validate IP against whitelist
     pub fn is_ip_whitelisted(&self, ip: IpAddr) -> bool {
-        self.security.allowed_signer_ips
+        self.security
+            .allowed_signer_ips
             .iter()
             .any(|allowed_ip| allowed_ip.parse::<IpAddr>().ok() == Some(ip))
     }

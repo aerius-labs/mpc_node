@@ -5,13 +5,13 @@ use crate::common::types::SigningRequest;
 use crate::common::{KeyGenParams, KeyGenRequest, KeysToStore, MessageToSignStored};
 use crate::error::TssError;
 use crate::manager::service::ManagerService;
+use crate::{auth::create_token, config::Settings};
 use anyhow::Context;
 use rocket::http::Status;
 use rocket::response::status::Created;
 use rocket::serde::json::Json;
 use rocket::{get, post, State};
 use serde::{Deserialize, Serialize};
-use crate::{auth::create_token, config::Settings};
 
 use super::constants::MAX_MESSAGE_SIZE;
 
@@ -46,8 +46,6 @@ pub struct TokenResponse {
     token_type: String,
 }
 
-
-
 #[post("/sign", format = "json", data = "<request>")]
 pub async fn sign(
     auth: AuthenticatedUser,
@@ -70,7 +68,10 @@ pub async fn sign(
         message,
     };
 
-    match manager.process_signing_request(signing_request.clone()).await {
+    match manager
+        .process_signing_request(signing_request.clone())
+        .await
+    {
         Ok(_) => {
             let response = SigningResponseDTO {
                 request_id: signing_request.id,
@@ -105,7 +106,7 @@ pub async fn get_signing_result(
 #[get("/generate_test_token/<role>")]
 pub async fn generate_test_token(
     role: String,
-    settings: &rocket::State<Arc<Settings>>
+    settings: &rocket::State<Arc<Settings>>,
 ) -> Result<Json<TokenResponse>, rocket::http::Status> {
     let role = match role.to_lowercase().as_str() {
         "public" => Role::Public,
@@ -113,7 +114,7 @@ pub async fn generate_test_token(
         "admin" => Role::Admin,
         _ => return Err(rocket::http::Status::BadRequest),
     };
-    
+
     match create_token("test-user", role, settings) {
         Ok(token) => Ok(Json(TokenResponse {
             token,
@@ -123,7 +124,6 @@ pub async fn generate_test_token(
         Err(_) => Err(rocket::http::Status::InternalServerError),
     }
 }
-
 
 #[post("/key_gen_request", format = "json", data = "<request>")]
 pub async fn generate_keys(
