@@ -1,6 +1,5 @@
 use crate::queue::rabbitmq::RabbitMQService;
 use anyhow::{anyhow, Result};
-use core::slice::SlicePattern;
 use curv::arithmetic::{BasicOps, Converter, Modulo};
 use curv::cryptographic_primitives::proofs::sigma_correct_homomorphic_elgamal_enc::HomoELGamalProof;
 use curv::cryptographic_primitives::proofs::sigma_dlog::DLogProof;
@@ -684,8 +683,8 @@ impl SignerService {
         //    print(sig.recid.clone()
 
         let ret_dict = json!({
-            "r": (BigInt::from_bytes(sig.r.to_bytes().as_slice())).to_str_radix(16),
-            "s": (BigInt::from_bytes(sig.s.to_bytes().as_slice())).to_str_radix(16),
+            "r": (BigInt::from_bytes(sig.r.to_bytes().as_ref())).to_str_radix(16),
+            "s": (BigInt::from_bytes(sig.s.to_bytes().as_ref())).to_str_radix(16),
             "status": "signature_ready",
             "recid": sig.recid.clone(),
             "x": &y_sum.x_coord().unwrap().to_hex(),

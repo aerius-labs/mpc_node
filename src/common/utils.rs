@@ -4,11 +4,11 @@ use aes_gcm::{
     Aes256Gcm, Nonce,
 };
 use anyhow::{anyhow, Result};
+use rand::{rngs::OsRng, RngCore};
 use reqwest::Client;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::{thread, time};
-use rand::{rngs::OsRng, RngCore};
 
 pub fn aes_encrypt(key: &[u8], plaintext: &[u8]) -> AEAD {
     let mut key_sized = [0u8; 32];

@@ -1,7 +1,5 @@
 extern crate curv;
 
-use core::slice::SlicePattern;
-
 use curv::arithmetic::traits::Converter;
 
 use crate::signer::secp256k1def::{FE, GE};
@@ -21,7 +19,7 @@ pub fn get_hd_key(y_sum: &GE, path_vector: Vec<BigInt>) -> (GE, FE) {
     let (y_sum_child, f_l_new, _cc_new) = hd_key(
         path_vector,
         y_sum,
-        &BigInt::from_bytes(chain_code.to_bytes(true).as_slice()),
+        &BigInt::from_bytes(chain_code.to_bytes(true).as_ref()),
     );
     let y_sum = y_sum_child.clone();
     //    println!("New public key: {:?}", &y_sum);
@@ -40,7 +38,7 @@ pub fn hd_key(
 
     // calc first element:
     let first = location_in_hir.remove(0);
-    let pub_key_bi = &BigInt::from_bytes(pubkey.to_bytes(true).as_slice());
+    let pub_key_bi = &BigInt::from_bytes(pubkey.to_bytes(true).as_ref());
     let f = create_hmac(chain_code_bi, &[pub_key_bi, &first]);
     let f_l = &f >> 256;
     let f_r = &f & &mask;
@@ -56,9 +54,9 @@ pub fn hd_key(
         location_in_hir
             .iter()
             .fold((pub_key, f_l_fe, chain_code), |acc, index| {
-                let pub_key_bi = &BigInt::from_bytes(acc.0.to_bytes(true).as_slice());
+                let pub_key_bi = &BigInt::from_bytes(acc.0.to_bytes(true).as_ref());
                 let f = create_hmac(
-                    &BigInt::from_bytes(acc.2.to_bytes(true).as_slice()),
+                    &BigInt::from_bytes(acc.2.to_bytes(true).as_ref()),
                     &[pub_key_bi, index],
                 );
                 let f_l = &f >> 256;
