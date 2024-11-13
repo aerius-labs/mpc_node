@@ -1,5 +1,5 @@
 use crate::queue::rabbitmq::RabbitMQService;
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use core::slice::SlicePattern;
 use curv::arithmetic::{BasicOps, Converter, Modulo};
 use curv::cryptographic_primitives::proofs::sigma_correct_homomorphic_elgamal_enc::HomoELGamalProof;
@@ -15,7 +15,7 @@ use serde_json::{json, Value};
 use sha2::Sha256;
 use std::fs::File;
 use std::io::Read;
-use std::{fs, thread, time};
+use std::{thread, time};
 use tracing::{error, info};
 
 use crate::common::{
@@ -23,7 +23,6 @@ use crate::common::{
     Params, PartySignup, PartySignupRequestBody, SignatureData, SignerResult, SigningPartySignup,
     SigningRequest,
 };
-// use crate::config::{PARTIES, PATH, THRESHOLD};
 use crate::signer::hd_keys;
 use crate::signer::secp256k1def::{FE, GE};
 
@@ -805,176 +804,6 @@ impl SignerService {
         };
 
         Ok((output, total_parties))
-    }
-
-    fn load_keys(key_file: &str) -> Result<(Keys, SharedKeys)> {
-        let data = fs::read_to_string(key_file)?;
-        let (party_keys, shared_keys, party_id): (Keys, SharedKeys, u16) =
-            serde_json::from_str(&data)?;
-        Ok((party_keys, shared_keys))
-    }
-
-    async fn broadcast_party_id(&self, party_num: u16, uuid: &str) -> Result<()> {
-        broadcast(
-            &self.manager_url,
-            &self.client,
-            party_num,
-            "round0",
-            self.signer_data.party_id.to_string(),
-            uuid.to_string(),
-        )
-        .await
-        .context("Failed to broadcast party ID")
-    }
-
-    async fn collect_signer_ids(
-        &self,
-        party_num: u16,
-        params: &Params,
-        uuid: &str,
-    ) -> Result<Vec<u16>> {
-        let round0_ans_vec = poll_for_broadcasts(
-            &self.manager_url,
-            &self.client,
-            party_num,
-            params.parties,
-            time::Duration::from_millis(25),
-            "round0",
-            uuid.to_string(),
-        )
-        .await;
-
-        let mut signers_vec = vec![self.signer_data.party_id];
-        for ans in round0_ans_vec.iter() {
-            signers_vec.push(serde_json::from_str(ans)?);
-        }
-        Ok(signers_vec)
-    }
-
-    async fn broadcast_commitment(
-        &self,
-        party_num: u16,
-        com: &SignBroadcastPhase1,
-        uuid: &str,
-    ) -> Result<()> {
-        broadcast(
-            &self.manager_url,
-            &self.client,
-            party_num,
-            "round1",
-            serde_json::to_string(com)?,
-            uuid.to_string(),
-        )
-        .await
-        .context("Failed to broadcast commitment")
-    }
-
-    async fn collect_commitments(
-        &self,
-        party_num: u16,
-        params: &Params,
-        uuid: &str,
-    ) -> Result<Vec<SignBroadcastPhase1>> {
-        let round1_ans_vec = poll_for_broadcasts(
-            &self.manager_url,
-            &self.client,
-            party_num,
-            params.parties,
-            time::Duration::from_millis(25),
-            "round1",
-            uuid.to_string(),
-        )
-        .await;
-
-        let mut commitments = vec![];
-        for ans in round1_ans_vec.iter() {
-            commitments.push(serde_json::from_str(ans)?);
-        }
-        Ok(commitments)
-    }
-
-    async fn broadcast_decommitment(
-        &self,
-        party_num: u16,
-        decom: &SignDecommitPhase1,
-        uuid: &str,
-    ) -> Result<()> {
-        broadcast(
-            &self.manager_url,
-            &self.client,
-            party_num,
-            "round2",
-            serde_json::to_string(decom)?,
-            uuid.to_string(),
-        )
-        .await
-        .context("Failed to broadcast decommitment")
-    }
-
-    async fn collect_decommitments(
-        &self,
-        party_num: u16,
-        params: &Params,
-        uuid: &str,
-    ) -> Result<Vec<SignDecommitPhase1>> {
-        let round2_ans_vec = poll_for_broadcasts(
-            &self.manager_url,
-            &self.client,
-            party_num,
-            params.parties,
-            time::Duration::from_millis(25),
-            "round2",
-            uuid.to_string(),
-        )
-        .await;
-
-        let mut decommitments = vec![];
-        for ans in round2_ans_vec.iter() {
-            decommitments.push(serde_json::from_str(ans)?);
-        }
-        Ok(decommitments)
-    }
-
-    async fn broadcast_local_signature(
-        &self,
-        party_num: u16,
-        local_sig: &LocalSignature,
-        uuid: &str,
-    ) -> Result<()> {
-        broadcast(
-            &self.manager_url,
-            &self.client,
-            party_num,
-            "round3",
-            serde_json::to_string(local_sig)?,
-            uuid.to_string(),
-        )
-        .await
-        .context("Failed to broadcast local signature")
-    }
-
-    async fn collect_local_signatures(
-        &self,
-        party_num: u16,
-        params: &Params,
-        uuid: &str,
-    ) -> Result<Vec<LocalSignature>> {
-        let round3_ans_vec = poll_for_broadcasts(
-            &self.manager_url,
-            &self.client,
-            party_num,
-            params.parties,
-            time::Duration::from_millis(25),
-            "round3",
-            uuid.to_string(),
-        )
-        .await;
-
-        let mut local_signatures = vec![];
-        for ans in round3_ans_vec.iter() {
-            local_signatures.push(serde_json::from_str(ans)?);
-        }
-        Ok(local_signatures)
     }
 
     async fn send_signature_to_manager(
