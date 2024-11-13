@@ -9,9 +9,7 @@ use lapin::{
 
 pub struct RabbitMQService {
     request_channel: Channel,
-    result_channel: Channel,
     request_exchange: String,
-    result_queue: String,
 }
 
 impl RabbitMQService {
@@ -41,9 +39,7 @@ impl RabbitMQService {
 
         Ok(Self {
             request_channel,
-            result_channel,
             request_exchange,
-            result_queue,
         })
     }
 
