@@ -70,6 +70,10 @@ impl MongoDBStorage {
     }
 
     pub async fn get_key_gen_result(&self, request_id: &str) -> Result<Option<KeysToStore>> {
+        // Validate UUID
+        if uuid::Uuid::parse_str(&request_id).is_err() {
+            return Err(TssError::InvalidUuid(request_id.to_string()).into());
+        }
         let filter = doc! { "request_id": request_id };
         if let Some(doc) = self.keys_gen_requests.find_one(filter, None).await? {
             Ok(Some(doc))
@@ -79,6 +83,10 @@ impl MongoDBStorage {
     }
 
     pub async fn get_signing_result(&self, id: &str) -> Result<Option<MessageToSignStored>> {
+        // Validate UUID
+        if uuid::Uuid::parse_str(&id).is_err() {
+            return Err(TssError::InvalidUuid(id.to_string()).into());
+        }
         let filter = doc! { "request_id": id };
         if let Some(doc) = self.requests.find_one(filter, None).await? {
             Ok(Some(doc))
@@ -88,6 +96,10 @@ impl MongoDBStorage {
     }
 
     pub async fn update_signing_result(&self, result: &SignerResult) -> Result<()> {
+        // Validate UUID
+        if uuid::Uuid::parse_str(&result.request_id).is_err() {
+            return Err(TssError::InvalidUuid(result.request_id.clone()).into());
+        }
         let filter = doc! { "request_id": &result.request_id };
         // Find the current document in the collection
         if let Some(mut stored_message) = self.requests.find_one(filter.clone(), None).await? {

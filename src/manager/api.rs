@@ -93,11 +93,6 @@ pub async fn get_signing_result(
         return Err(Status::Forbidden);
     }
 
-    // Validate UUID
-    if uuid::Uuid::parse_str(&request_id).is_err() {
-        return Err(Status::BadRequest);
-    }
-
     match manager.get_signing_result(&request_id).await {
         Ok(result) => Ok(Json(result)),
         Err(_) => Err(Status::InternalServerError),

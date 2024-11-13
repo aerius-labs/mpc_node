@@ -49,6 +49,9 @@ pub enum TssError {
 
     #[error("Message too large")]
     MessageTooLarge,
+
+    #[error("Invalid Uuid: {0}")]
+    InvalidUuid(String),
 }
 
 impl From<lapin::Error> for TssError {
