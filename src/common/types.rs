@@ -1,3 +1,4 @@
+use mongodb::bson::Bson;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fmt::{Display, Formatter};
@@ -18,6 +19,16 @@ pub enum MessageStatus {
     Pending,
     InProgress,
     Completed,
+}
+
+impl From<MessageStatus> for Bson {
+    fn from(status: MessageStatus) -> Self {
+        match status {
+            MessageStatus::Pending => Bson::String("Pending".to_string()),
+            MessageStatus::InProgress => Bson::String("InProgress".to_string()),
+            MessageStatus::Completed => Bson::String("Completed".to_string()),
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]

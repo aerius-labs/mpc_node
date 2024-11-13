@@ -3,7 +3,8 @@ use crate::common::{KeyGenRequest, KeysToStore, MessageStatus, MessageToSignStor
 use crate::error::TssError;
 use crate::manager::constants::MAX_MESSAGE_SIZE;
 use anyhow::Result;
-use mongodb::bson::{doc, to_document};
+use mongodb::bson::{doc, to_document, Bson};
+use mongodb::options::UpdateOptions;
 use mongodb::{Client, Collection};
 
 pub struct MongoDBStorage {
@@ -100,22 +101,22 @@ impl MongoDBStorage {
         if uuid::Uuid::parse_str(&result.request_id).is_err() {
             return Err(TssError::InvalidUuid(result.request_id.clone()).into());
         }
-        let filter = doc! { "request_id": &result.request_id };
-        // Find the current document in the collection
-        if let Some(mut stored_message) = self.requests.find_one(filter.clone(), None).await? {
-            // Check if the current status is `Pending`
-            if stored_message.status == MessageStatus::Pending {
-                // Update the signature and status to `Completed`
-                stored_message.signature = Some(result.signature.clone());
-                stored_message.status = MessageStatus::Completed;
+        let filter = doc! {
+            "request_id": &result.request_id,
+            "status": Bson::from(MessageStatus::Pending),
+        };
 
-                // Perform the update in the collection
-                let update_doc = to_document(&stored_message)?;
-                self.requests
-                    .update_one(filter, doc! { "$set": update_doc }, None)
-                    .await?;
+        let update = doc! {
+            "$set": {
+                "signature": to_document(&result.signature)?,
+                "status": Bson::from(MessageStatus::Completed),
             }
-        }
+        };
+
+        let options = UpdateOptions::builder().upsert(false).build();
+
+        //Perform atomic update
+        self.requests.update_one(filter, update, options).await?;
         // If the status is not pending, simply return Ok()
         Ok(())
     }
