@@ -1,3 +1,4 @@
+use crate::auth::SignerAuth;
 use crate::common::{
     Entry, Index, KeyGenParams, ManagerError, PartySignup, PartySignupRequestBody, SignerResult,
     SigningPartySignup, SigningRoom,
@@ -13,6 +14,7 @@ use std::sync::Arc;
 
 #[post("/get", format = "json", data = "<request>")]
 pub async fn get(
+    _auth: SignerAuth,
     manager: &State<Arc<ManagerService>>,
     request: Json<Index>,
 ) -> Json<Result<Entry, ManagerError>> {
@@ -34,6 +36,7 @@ pub async fn get(
 
 #[post("/set", format = "json", data = "<request>")]
 pub async fn set(
+    _auth: SignerAuth,
     manager: &State<Arc<ManagerService>>,
     request: Json<Entry>,
 ) -> Json<Result<(), ManagerError>> {
@@ -45,6 +48,7 @@ pub async fn set(
 
 #[post("/signupkeygen", format = "json", data = "<request>")]
 pub async fn signup_keygen(
+    _auth: SignerAuth,
     manager: &State<Arc<ManagerService>>,
     request: Json<KeyGenParams>,
 ) -> Json<Result<PartySignup, ManagerError>> {
@@ -80,6 +84,7 @@ pub async fn signup_keygen(
 
 #[post("/signupsign", format = "json", data = "<request>")]
 pub async fn signup_sign(
+    _auth: SignerAuth,
     manager: &State<Arc<ManagerService>>,
     request: Json<PartySignupRequestBody>,
 ) -> Json<Result<SigningPartySignup, ManagerError>> {
@@ -155,6 +160,7 @@ pub async fn signup_sign(
 
 #[post("/update_signing_result", format = "json", data = "<result>")]
 pub async fn update_signing_result(
+    _auth: SignerAuth,
     manager: &State<Arc<ManagerService>>,
     result: Json<SignerResult>,
 ) -> Json<Result<(), ManagerError>> {

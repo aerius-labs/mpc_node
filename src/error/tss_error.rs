@@ -23,6 +23,15 @@ pub enum TssError {
     #[error("I/O error: {0}")]
     IoError(#[from] std::io::Error),
 
+    #[error("JWT error: {0}")]
+    JWTError(String),
+
+    #[error("Authentication error: {0}")]
+    AuthError(String),
+
+    #[error("Authorization error: {0}")]
+    AuthorizationError(String),
+
     #[error("Timeout error")]
     TimeoutError,
 
@@ -37,6 +46,12 @@ pub enum TssError {
 
     #[error("Unexpected error: {0}")]
     UnexpectedError(String),
+
+    #[error("Message too large")]
+    MessageTooLarge,
+
+    #[error("Invalid Uuid: {0}")]
+    InvalidUuid(String),
 }
 
 impl From<lapin::Error> for TssError {

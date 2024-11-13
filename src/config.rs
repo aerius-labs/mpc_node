@@ -1,6 +1,14 @@
+use std::net::IpAddr;
+
 use config::{Config, ConfigError, Environment, File};
 use serde::Deserialize;
 
+#[derive(Debug, Deserialize)]
+pub struct SecurityConfig {
+    pub jwt_secret: String,
+    pub jwt_expiration: u64,
+    pub allowed_signer_ips: Vec<String>,
+}
 #[derive(Debug, Deserialize)]
 pub struct Settings {
     pub mongodb_uri: String,
@@ -12,6 +20,8 @@ pub struct Settings {
     pub total_parties: u16,
     pub path: String,
     pub signer_key_files: Vec<String>,
+    // New secuirty configuration section
+    pub security: SecurityConfig,
 }
 
 impl Settings {
@@ -28,5 +38,12 @@ impl Settings {
         builder = builder.add_source(Environment::with_prefix("app"));
         println!("config: {:?}", builder);
         builder.build()?.try_deserialize()
+    }
+
+    // Helper method to validate IP against whitelist
+    pub fn is_ip_whitelisted(&self, ip: IpAddr) -> bool {
+        self.security.allowed_signer_ips
+            .iter()
+            .any(|allowed_ip| allowed_ip.parse::<IpAddr>().ok() == Some(ip))
     }
 }

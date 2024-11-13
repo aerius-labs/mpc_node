@@ -1,18 +1,17 @@
 use crate::common::{
-    Key, KeyGenRequest, KeysToStore, MessageToSignStored, SignerResult, SigningRequest, SigningRoom,
+    Key, KeyGenRequest, KeysToStore, MessageToSignStored, SignerResult, SigningRequest,
 };
 use crate::queue::rabbitmq::RabbitMQService;
 use crate::storage::mongodb::MongoDBStorage;
 use anyhow::Result;
 use futures::future::join_all;
 use std::collections::HashMap;
-use std::result;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tokio::task;
 use tracing::info;
 
-use super::keygen::{self, run_keygen};
+use super::keygen::run_keygen;
 
 pub struct ManagerService {
     pub storage: MongoDBStorage,
@@ -26,7 +25,6 @@ impl ManagerService {
     pub async fn new(
         mongodb_uri: &str,
         rabbitmq_uri: &str,
-        signing_timeout: u64,
         threshold: u16,
         total_parties: u16,
     ) -> Result<Self> {
@@ -58,39 +56,6 @@ impl ManagerService {
         }
     }
 
-    pub async fn handle_signing_request(&self, request: SigningRequest) -> Result<()> {
-        info!("Received signing request: {}", request.id);
-        self.storage.insert_request(&request).await?;
-
-        let room_id = self.initiate_signing(&request.message).await?;
-
-        // Notify all registered signers about the new signing request
-        let signing_rooms = self.signing_rooms.read().await;
-        if let Some(room) = signing_rooms.get(&room_id) {
-            let room: SigningRoom = serde_json::from_str(room)?;
-            for party_number in room.member_info.keys() {
-                self.notify_signer(*party_number, &request).await?;
-            }
-        }
-
-        Ok(())
-    }
-
-    async fn initiate_signing(&self, message: &[u8]) -> Result<String> {
-        let room_id = crate::common::sha256_digest(message);
-        let mut signing_rooms = self.signing_rooms.write().await;
-        let signing_room =
-            serde_json::to_string(&SigningRoom::new(room_id.clone(), self.total_parties))?;
-        signing_rooms.insert(room_id.clone(), signing_room);
-        Ok(room_id)
-    }
-
-    async fn notify_signer(&self, party_number: u16, request: &SigningRequest) -> Result<()> {
-        // Implement logic to notify a signer about a new signing request
-        // This could involve sending a message via RabbitMQ or another communication method
-        todo!("Implement signer notification")
-    }
-
     pub async fn get_signing_result(
         &self,
         request_id: &str,
@@ -116,7 +81,7 @@ impl ManagerService {
         self.storage.insert_key_gen_request(&request).await?;
         let total_parties = request.keygen_params.parties;
         let tasks: Vec<_> = (0..total_parties)
-            .map(|party_id| {
+            .map(|_| {
                 let manager_addr = manager_addr.clone();
                 let request = request.clone();
                 task::spawn(async move { run_keygen(&manager_addr, &request).await })
