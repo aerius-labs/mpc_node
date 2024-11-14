@@ -1,3 +1,4 @@
 /target
 /config/default.toml
 signer*.store
+/logs

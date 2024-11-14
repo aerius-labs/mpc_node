@@ -34,6 +34,7 @@ aes-gcm = "0.9.4"
 zeroize = "1"
 hmac = "0.11"
 rand = "0.8.5"
+clap =  {version = "4.5.21", features = ["derive"]}
 
 [dev-dependencies]
 tokio-test = "0.4"

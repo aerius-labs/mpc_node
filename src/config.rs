@@ -19,7 +19,7 @@ pub struct Settings {
     pub threshold: u16,
     pub total_parties: u16,
     pub path: String,
-    pub signer_key_files: Vec<String>,
+    pub signer_key_file: String,
     // New secuirty configuration section
     pub security: SecurityConfig,
 }
