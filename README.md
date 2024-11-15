@@ -18,6 +18,7 @@ TSS Network is a robust implementation of Threshold Signature Scheme (TSS) for d
   - [Usage](#usage)
     - [Starting the Manager Service](#starting-the-manager-service)
     - [Starting the Signer Service](#starting-the-signer-service)
+    - [Test script](#test-script)
     - [API Endpoints](#api-endpoints)
   - [API Reference](#api-reference)
     - [Initiate Signing Request](#initiate-signing-request)
@@ -114,17 +115,20 @@ endLine: 92
 3. Set the required configuration parameters in these files. Example:
 
    ```toml
-   mongodb_uri = "mongodb://localhost:27017"
-   rabbitmq_uri = "amqp://localhost:5672"
-   manager_url = "http://127.0.0.1"
-   manager_port = 8080
-   signing_timeout = 30
-   threshold = 2
-   total_parties = 3
-   path = "0/1/2"
-   signer1_key_file = "signer1.store"
-   signer2_key_file = "signer2.store"
-   signer3_key_file = "signer3.store"
+    mongodb_uri = "mongodb://localhost:27017"
+    rabbitmq_uri = "amqp://localhost:5672"
+    manager_url = "http://127.0.0.1"
+    manager_port = 8080
+    signing_timeout = 30
+    threshold = 2
+    total_parties = 3
+    path = "0/1/2"
+    signer_key_file = ""
+    
+    [security]
+    jwt_secret = "development-secret-key-change-me-in-production"
+    jwt_expiration = 3600  # 1 hour
+    allowed_signer_ips = ["127.0.0.1", "127.0.0.1"]
    ```
 
 4. Set the `RUN_MODE` environment variable to specify the configuration to use:
@@ -148,15 +152,19 @@ To start the Signer Service, run:
 cargo run --bin signer
 ```
 
+### Test script
+Script to run three signers for demonstration.
+```bash 
+./run_signers.sh start all 
+```
 
 ### API Endpoints
 
 The Manager Service exposes the following API endpoints:
 
 - `POST /sign`: Initiate a signing request
-- `GET /status/<request_id>`: Get the status of a signing request
-- `GET /signature/<request_id>`: Retrieve the signature for a completed request
-- `GET /health`: Health check endpoint
+- `GET /signing_result/<request_id>`: Retrieve the signature for a completed request
+
 
 For detailed API usage, refer to the [API Reference](#api-reference) section.
 

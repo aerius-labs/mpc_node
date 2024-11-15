@@ -7,4 +7,3 @@ pub mod storage;
 mod auth;
 pub mod config;
 pub mod error;
-mod monitoring;
