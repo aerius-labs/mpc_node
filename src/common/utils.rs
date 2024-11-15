@@ -118,7 +118,6 @@ pub async fn poll_for_broadcasts(
                 match answer {
                     Ok(entry) => {
                         ans_vec.push(entry.value);
-                        println!("[{:?}] party {:?} => party {:?}", round, i, party_num);
                         break;
                     }
                     Err(_) => continue,
@@ -150,7 +149,6 @@ pub async fn poll_for_p2p(
                 match answer {
                     Ok(entry) => {
                         ans_vec.push(entry.value);
-                        println!("[{:?}] party {:?} => party {:?}", round, i, party_num);
                         break;
                     }
                     Err(_) => continue,

@@ -36,7 +36,6 @@ impl Settings {
         builder = builder.add_source(File::with_name("config/local").required(false));
 
         builder = builder.add_source(Environment::with_prefix("app"));
-        println!("config: {:?}", builder);
         builder.build()?.try_deserialize()
     }
 

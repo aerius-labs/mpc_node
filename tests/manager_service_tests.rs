@@ -82,7 +82,6 @@ async fn test_signing_flow() {
     )
     .await
     .unwrap();
-    println!("Signature: {:?}", result.signature);
 
     // For demonstration, we'll just check if the processes are still running
     assert!(
