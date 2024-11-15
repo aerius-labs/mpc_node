@@ -52,6 +52,9 @@ pub enum TssError {
 
     #[error("Invalid Uuid: {0}")]
     InvalidUuid(String),
+
+    #[error("Not found error: {0}")]
+    NotFoundError(String),
 }
 
 impl From<lapin::Error> for TssError {

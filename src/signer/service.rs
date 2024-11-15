@@ -1,6 +1,5 @@
 use crate::queue::rabbitmq::RabbitMQService;
 use anyhow::{anyhow, Result};
-use core::slice::SlicePattern;
 use curv::arithmetic::{BasicOps, Converter, Modulo};
 use curv::cryptographic_primitives::proofs::sigma_correct_homomorphic_elgamal_enc::HomoELGamalProof;
 use curv::cryptographic_primitives::proofs::sigma_dlog::DLogProof;
@@ -454,7 +453,6 @@ impl SignerService {
             .map(|i| &m_b_gamma_rec_vec[i].b_proof)
             .collect::<Vec<&DLogProof<Secp256k1, Sha256>>>();
 
-        
         let R = SignKeys::phase4(&delta_inv, &b_proof_vec, decommit_vec, &bc1_vec)
             .expect("bad gamma_i decommit");
 
@@ -685,8 +683,8 @@ impl SignerService {
         //    print(sig.recid.clone()
 
         let ret_dict = json!({
-            "r": (BigInt::from_bytes(sig.r.to_bytes().as_slice())).to_str_radix(16),
-            "s": (BigInt::from_bytes(sig.s.to_bytes().as_slice())).to_str_radix(16),
+            "r": (BigInt::from_bytes(sig.r.to_bytes().as_ref())).to_str_radix(16),
+            "s": (BigInt::from_bytes(sig.s.to_bytes().as_ref())).to_str_radix(16),
             "status": "signature_ready",
             "recid": sig.recid.clone(),
             "x": &y_sum.x_coord().unwrap().to_hex(),

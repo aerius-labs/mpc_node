@@ -1,6 +1,3 @@
-#![feature(async_closure)]
-#![feature(slice_pattern)]
-
 pub mod common;
 pub mod manager;
 pub mod queue;

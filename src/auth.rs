@@ -3,9 +3,9 @@ use rocket::http::Status;
 use rocket::request::{FromRequest, Outcome};
 use rocket::{Request, State};
 use serde::{Deserialize, Serialize};
-use tracing::{debug, warn};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tracing::{debug, warn};
 
 use crate::config::Settings;
 use crate::error::TssError;
@@ -41,7 +41,6 @@ pub struct AuthenticatedUser {
 // New struct for IP-based authentication
 pub struct SignerAuth;
 
-
 // New struct for IP-based authentication
 #[rocket::async_trait]
 impl<'r> FromRequest<'r> for SignerAuth {
@@ -58,7 +57,10 @@ impl<'r> FromRequest<'r> for SignerAuth {
             if settings.is_ip_whitelisted(client_ip) {
                 Outcome::Success(SignerAuth)
             } else {
-                warn!("Unauthorized signer API access attempt from IP: {}", client_ip);
+                warn!(
+                    "Unauthorized signer API access attempt from IP: {}",
+                    client_ip
+                );
                 Outcome::Error((Status::Unauthorized, AuthError::IpNotAllowed))
             }
         } else {
@@ -73,8 +75,9 @@ impl<'r> FromRequest<'r> for AuthenticatedUser {
     type Error = AuthError;
 
     async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
-
-        let settings = request.guard::<&State<Arc<Settings>>>().await
+        let settings = request
+            .guard::<&State<Arc<Settings>>>()
+            .await
             .expect("Settings not found in request state");
 
         // Get and validate JWT token
@@ -134,9 +137,12 @@ pub fn validate_token(token: &str, secret: &str) -> Result<Claims, jsonwebtoken:
 }
 
 pub fn create_token(user_id: &str, role: Role, settings: &Settings) -> Result<String, TssError> {
-
     match role {
-        Role::Signer => return Err(TssError::AuthError("Cannot create token for Signer role".into())),
+        Role::Signer => {
+            return Err(TssError::AuthError(
+                "Cannot create token for Signer role".into(),
+            ))
+        }
         _ => (),
     }
 
@@ -159,4 +165,3 @@ pub fn create_token(user_id: &str, role: Role, settings: &Settings) -> Result<St
     )
     .map_err(|e| TssError::JWTError(e.to_string()))
 }
-

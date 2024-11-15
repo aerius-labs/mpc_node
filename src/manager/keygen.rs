@@ -1,4 +1,4 @@
-use std::{fs, time};
+use std::time;
 
 use crate::common::{
     secp256k1def::{FE, GE},
@@ -21,10 +21,11 @@ use reqwest::Client;
 use sha2::Sha256;
 
 use crate::common::{
-    aes_decrypt, aes_encrypt, broadcast, poll_for_broadcasts, poll_for_p2p, postb, sendp2p, Params,
+    aes_decrypt, aes_encrypt, broadcast, poll_for_broadcasts, poll_for_p2p, postb, sendp2p,
     PartySignup, AEAD,
 };
 
+#[allow(non_snake_case)]
 pub async fn run_keygen(addr: &String, keygen_request: &KeyGenRequest) -> Result<String> {
     let params = keygen_request.keygen_params.clone();
     let THRESHOLD: u16 = params.threshold;
