@@ -1,6 +1,6 @@
 use crate::{common::types::*, manager::constants::NONCE_SIZE};
 use aes_gcm::{
-    aead::{Aead, NewAead},
+    aead::{Aead, NewAead, Payload},
     Aes256Gcm, Nonce,
 };
 use anyhow::{anyhow, Result};
@@ -12,31 +12,47 @@ use std::{thread, time};
 
 pub fn aes_encrypt(key: &[u8], plaintext: &[u8]) -> AEAD {
     let mut key_sized = [0u8; 32];
-    key_sized[..key.len()].copy_from_slice(key);
+    key_sized[(32 - key.len())..].copy_from_slice(key);
     let aes_key = aes_gcm::Key::from_slice(&key_sized);
     let cipher = Aes256Gcm::new(aes_key);
 
-    let mut nonce_bytes = [0u8; NONCE_SIZE];
+    let mut nonce_bytes: [u8; NONCE_SIZE] = [0u8; NONCE_SIZE];
     OsRng.fill_bytes(&mut nonce_bytes);
     let nonce = Nonce::from_slice(&nonce_bytes);
-    let ciphertext = cipher.encrypt(nonce, plaintext).unwrap();
+
+    let out_tag = [0u8; 16];
+
+    let text_payload = Payload {
+        msg: plaintext,
+        aad: &out_tag.as_slice(), // out tag is set to default value, no authentication data
+    };
+
+    let ciphertext = cipher
+        .encrypt(nonce, text_payload)
+        .expect("encryption failure!");
 
     AEAD {
         ciphertext,
-        tag: nonce.to_vec(),
+        tag: out_tag.to_vec(),
+        nonce: nonce.to_vec(),
     }
 }
 
 pub fn aes_decrypt(key: &[u8], aead_pack: AEAD) -> Vec<u8> {
     let mut key_sized = [0u8; 32];
-    key_sized[..key.len()].copy_from_slice(key);
+    key_sized[(32 - key.len())..].copy_from_slice(key);
     let aes_key = aes_gcm::Key::from_slice(&key_sized);
-    let cipher = Aes256Gcm::new(aes_key);
+    let gcm = Aes256Gcm::new(aes_key);
 
-    let nonce = Nonce::from_slice(&aead_pack.tag);
-    cipher
-        .decrypt(nonce, aead_pack.ciphertext.as_ref())
-        .unwrap()
+    let nonce = Nonce::from_slice(&aead_pack.nonce);
+
+    let text_payload = Payload {
+        msg: aead_pack.ciphertext.as_slice(),
+        aad: aead_pack.tag.as_slice(),
+    };
+
+    let out = gcm.decrypt(nonce, text_payload);
+    out.unwrap_or_default()
 }
 
 pub async fn postb<T>(addr: &str, client: &Client, path: &str, body: T) -> Option<String>
@@ -94,6 +110,7 @@ pub async fn sendp2p(
     };
 
     let res_body = postb(addr, client, "set", entry).await.unwrap();
+    println!("res_body: {}", res_body);
     serde_json::from_str(&res_body).unwrap()
 }
 
