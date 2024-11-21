@@ -30,7 +30,6 @@ pub async fn run_keygen(addr: &String, keygen_request: &KeyGenRequest) -> Result
     let params = keygen_request.keygen_params.clone();
     let THRESHOLD: u16 = params.threshold;
     let PARTIES: u16 = params.parties;
-    println!("Threshold: {:?}, Parties: {:?}", THRESHOLD, PARTIES);
     let client = Client::new();
 
     // delay:
@@ -48,7 +47,6 @@ pub async fn run_keygen(addr: &String, keygen_request: &KeyGenRequest) -> Result
     let (party_num_int, uuid) = match keygen_signup(&addr, &client, tn_params).await.unwrap() {
         PartySignup { number, uuid } => (number, uuid),
     };
-    println!("number: {:?}, uuid: {:?}", party_num_int, uuid);
 
     let party_keys = Keys::create(party_num_int);
     let (bc_i, decom_i) = party_keys.phase1_broadcast_phase3_proof_of_correct_key();

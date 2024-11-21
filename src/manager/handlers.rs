@@ -110,12 +110,6 @@ pub async fn signup_sign(
         }
 
         if signing_room.are_all_members_inactive() {
-            let debug = serde_json::json!({
-                "message": "All parties have been inactive. Renewed the room.",
-                "room_id": room_id,
-                "fragment.index": party_number,
-            });
-            println!("{}", serde_json::to_string_pretty(&debug).unwrap());
             signing_room = SigningRoom::new(room_id, threshold + 1);
         } else {
             return Json(Err(ManagerError {

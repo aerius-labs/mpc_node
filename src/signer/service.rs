@@ -769,12 +769,10 @@ impl SignerService {
                         }) => {
                             request_body.party_uuid = party_uuid;
                             if party_signup.number != party_order {
-                                println!("Order is changed: {:?}", party_order);
                                 party_signup.number = party_order;
                             }
                             party_signup.uuid = room_uuid;
                             if total_joined != last_total_joined {
-                                println!("Joined so far: {:?}", total_joined);
                                 last_total_joined = total_joined;
                                 //Reset the signup timeout
                                 now = time::SystemTime::now();

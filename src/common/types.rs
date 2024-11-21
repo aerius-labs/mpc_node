@@ -52,6 +52,7 @@ pub struct SignerResult {
 pub struct AEAD {
     pub ciphertext: Vec<u8>,
     pub tag: Vec<u8>,
+    pub nonce: Vec<u8>,
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
