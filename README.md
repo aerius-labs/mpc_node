@@ -245,14 +245,14 @@ cargo test --package tss_network --test manager_service_tests -- test_signing_fl
 ```
 
 
-## Security Considerations
+## Security Considerations (Posterity)
 
 1. **Key Management**: Ensure that private key shares are securely stored and never transmitted in plain text.
 2. **Network Security**: Use TLS/SSL for all network communications between components.
 3. **Access Control**: Implement strong authentication and authorization mechanisms for API access.
 4. **Secure Configuration**: Keep all configuration files, especially those containing sensitive information, secure and separate from the codebase.
 5. **Monitoring and Alerting**: Implement comprehensive logging and monitoring to detect and respond to any suspicious activities.
-6. **Regular Audits**: Conduct regular security audits and penetration testing of the system.
+6. **Regular Audits**: Conduct regular security audits and penetration testing of the system. (1 Audit done)
 7. **Dependency Management**: Regularly update and patch all dependencies to address any known vulnerabilities.
 
 ## Contributing
@@ -267,6 +267,9 @@ We welcome contributions to the TSS Network project. Please follow these steps t
 
 Please ensure that your code adheres to the existing style conventions and includes appropriate tests.
 
+## Acknowledgements
+This work is heavy inspired from and is an extension of work done by ZenGo [here](https://github.com/ZenGo-X/multi-party-ecdsa/)
+
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the GPL v3 License. See the [LICENSE](LICENSE) file for details.
