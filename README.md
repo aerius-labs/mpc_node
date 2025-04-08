@@ -1,6 +1,7 @@
 # TSS Network
 
 TSS Network is a robust implementation of Threshold Signature Scheme (TSS) for distributed key management and signing operations.
+Implemented protocol is GG18 for t/n threshold signing for ECDSA signatures
 
 ## Table of Contents
 
@@ -34,12 +35,12 @@ TSS Network is a robust implementation of Threshold Signature Scheme (TSS) for d
 - Distributed key generation and management
 - Threshold-based signing operations
 - Secure communication between signers
-- Fault tolerance and Byzantine fault resistance
+- Fault tolerance (DONE) and Byzantine fault resistance (WIP)
 - Integration with RabbitMQ for message queuing
 - MongoDB storage for persistent data
 - RESTful API for easy integration
 - Comprehensive error handling and logging
-- Metrics and monitoring support
+- Metrics and monitoring support (WIP)
 
 ## Architecture
 
