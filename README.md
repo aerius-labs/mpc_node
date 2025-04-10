@@ -49,7 +49,7 @@ The TSS Network consists of two main components:
 1. **Manager Service**: Coordinates the signing process, manages signing rooms, and handles API requests.
 2. **Signer Service**: Participates in the distributed signing process and interacts with the Manager Service.
 
-![architecture](https://github.com/user-attachments/assets/c0a6cbc7-03e2-4928-b538-2d8e12b70c9f)
+![architecture](assets/architecture.png)
 
 ## Components
 
@@ -61,7 +61,7 @@ rust:src/manager/service.rs
 startLine: 1
 endLine: 86
 
-![manager_service](https://github.com/user-attachments/assets/7cc393f0-2181-4d64-a81e-46fe818c49dd)
+![manager_service](assets/manager_service.png)
 
 ### Signer Service
 
@@ -71,7 +71,7 @@ rust:src/signer/service.rs
 startLine: 1
 endLine: 883
 
-![signer_service](https://github.com/user-attachments/assets/30bc2c3c-0ada-41f2-901d-6882104e457e)
+![signer_service](assets/signer_service.png)
 
 ### Common Components
 
@@ -82,7 +82,7 @@ startLine: 53
 endLine: 92
 
 ### Application data flow
-![data_flow](https://github.com/user-attachments/assets/07728f25-229d-49f7-98e1-8af6b867eef3)
+![data_flow](assets/data_flow.png)
 
 ## Installation
 
